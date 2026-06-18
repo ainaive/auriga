@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { parseJobSpec } from "@auriga/core";
 import { formatTrace, formatUsage } from "@auriga/capella";
 import { loadEvalCases, runEvals } from "@auriga/evals";
-import { FileJobStore, Worker, type JobRecord } from "@auriga/habenae";
+import { FileJobStore, Scheduler, Worker, type JobRecord } from "@auriga/habenae";
 import { AnthropicProvider, MODELS } from "@auriga/provider";
 import { selectDriver, type SandboxDriver } from "@auriga/sandbox";
 
@@ -17,6 +17,12 @@ async function main(): Promise<void> {
   switch (cmd) {
     case "submit":
       await submit(store, rest);
+      break;
+    case "create":
+      await create(store, rest);
+      break;
+    case "schedule":
+      await schedule(store, rest);
       break;
     case "run":
       await run(store, rest);
@@ -34,7 +40,7 @@ async function main(): Promise<void> {
       await trace(store, rest);
       break;
     case "list":
-      await list(store);
+      await list(store, rest);
       break;
     case "eval":
       await evalCmd(rest);
@@ -100,6 +106,59 @@ async function submit(store: FileJobStore, args: string[]): Promise<void> {
   await runWorker(store, spec.id, MODEL);
 }
 
+async function create(store: FileJobStore, args: string[]): Promise<void> {
+  const specPath = args[0];
+  if (!specPath) {
+    console.error("usage: auriga create <spec.json>");
+    process.exitCode = 1;
+    return;
+  }
+  let spec: ReturnType<typeof parseJobSpec>;
+  try {
+    spec = parseJobSpec(JSON.parse(await readFile(specPath, "utf8")));
+  } catch (err) {
+    console.error(`failed to read/parse spec: ${specPath}`);
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exitCode = 1;
+    return;
+  }
+  await store.create(spec);
+  console.log(`created ${spec.id} (pending) — run \`auriga schedule\` to execute`);
+}
+
+async function schedule(store: FileJobStore, args: string[]): Promise<void> {
+  const pending = (await store.list()).filter((j) => j.state === "pending");
+  if (pending.length === 0) {
+    console.log("(no pending jobs)");
+    return;
+  }
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.error("ANTHROPIC_API_KEY is required to run jobs.");
+    process.exitCode = 1;
+    return;
+  }
+  const driver = await selectCliDriver();
+  const worker = new Worker({
+    store,
+    provider: new AnthropicProvider(),
+    model: MODEL,
+    sandboxDriver: driver,
+  });
+  const maxRetries = intArg(args, "--max-retries", 0);
+  const scheduler = new Scheduler({
+    store,
+    run: (id) => worker.run(id),
+    quotas: { global: intArg(args, "--global", 2), perFactio: intArg(args, "--per-factio", 1) },
+    ...(maxRetries > 0 ? { retry: { maxRetries } } : {}),
+  });
+  const report = await scheduler.drain();
+  console.log(
+    `scheduled ${report.ran.length} runs · ${report.done.length} done · ` +
+      `${report.failed.length} failed · ${report.blocked.length} blocked · ${report.retried.length} retries`,
+  );
+  if (report.failed.length > 0 || report.blocked.length > 0) process.exitCode = 2;
+}
+
 async function run(store: FileJobStore, args: string[]): Promise<void> {
   const rec = await requireJob(store, args[0]);
   if (!rec) return;
@@ -145,15 +204,27 @@ async function trace(store: FileJobStore, args: string[]): Promise<void> {
   console.log(formatTrace(t));
 }
 
-async function list(store: FileJobStore): Promise<void> {
-  const jobs = await store.list();
+async function list(store: FileJobStore, args: string[]): Promise<void> {
+  const factio = flagValue(args, "--factio");
+  const jobs = factio ? await store.listByFactio(factio) : await store.list();
   if (!jobs.length) {
-    console.log("(no jobs)");
+    console.log(factio ? `(no jobs in factio ${factio})` : "(no jobs)");
     return;
   }
   for (const j of jobs.sort((a, b) => (a.created_at < b.created_at ? 1 : -1))) {
-    console.log(`${j.id}  ${j.state}  ${formatUsage(j.model, j.usage)}`);
+    console.log(`${j.id}  [${j.spec.factio}]  ${j.state}  ${formatUsage(j.model, j.usage)}`);
   }
+}
+
+function flagValue(args: string[], name: string): string | undefined {
+  const i = args.indexOf(name);
+  return i >= 0 ? args[i + 1] : undefined;
+}
+
+function intArg(args: string[], name: string, fallback: number): number {
+  const raw = flagValue(args, name);
+  const n = raw === undefined ? Number.NaN : Number.parseInt(raw, 10);
+  return Number.isFinite(n) ? n : fallback;
 }
 
 async function evalCmd(args: string[]): Promise<void> {
@@ -201,15 +272,17 @@ function printUsage(): void {
 
 usage:
   auriga submit <spec.json>   create and run a job to completion
+  auriga create <spec.json>   create a pending job (for DAGs / batch scheduling)
+  auriga schedule [opts]      drain pending jobs (--global N --per-factio N --max-retries N)
   auriga run <id>             run/resume an existing job (e.g. after approval)
   auriga approve <id>         grant human approval to a paused job (HITL)
   auriga status <id>          show a job's state + cost
   auriga result <id>          show a job's final result
   auriga trace <id>           print the recorded trace + cost
-  auriga list                 list all jobs
+  auriga list [--factio F]    list all jobs (optionally one tenant)
   auriga eval <suite-dir>     replay a suite of recorded traces and score them
 
-env: ANTHROPIC_API_KEY (required for submit/run), AURIGA_MODEL, AURIGA_HOME,
+env: ANTHROPIC_API_KEY (required for submit/run/schedule), AURIGA_MODEL, AURIGA_HOME,
      AURIGA_REQUIRE_DOCKER=1 (require an isolated sandbox)`);
 }
 
