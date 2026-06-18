@@ -1,0 +1,45 @@
+# Local development datastores for Auriga.
+#   - Postgres: control-plane state, job/checkpoint/trace store, queue (graphile-worker), pgvector later
+#   - MinIO:    S3-compatible object store for artifacts, large traces, skill blobs
+#
+# Usage: docker compose up -d   (requires Docker Desktop)
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: auriga-postgres
+    environment:
+      POSTGRES_USER: auriga
+      POSTGRES_PASSWORD: auriga
+      POSTGRES_DB: auriga
+    ports:
+      - "5432:5432"
+    volumes:
+      - auriga-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auriga -d auriga"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: auriga-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: auriga
+      MINIO_ROOT_PASSWORD: auriga-secret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - auriga-minio:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  auriga-pg:
+  auriga-minio:

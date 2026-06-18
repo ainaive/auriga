@@ -1,0 +1,25 @@
+{
+  "name": "auriga",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Auriga — a harness job platform for agents (agent-flavored job scheduler / control plane).",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "check": "bun run typecheck && bun run test"
+  },
+  "devDependencies": {
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/sdk-node": "^0.219.0",
+    "@types/bun": "^1.2.0",
+    "@types/pg": "^8.20.0",
+    "graphile-worker": "^0.17.2",
+    "pg": "^8.21.0",
+    "typescript": "^5.7.0"
+  }
+}

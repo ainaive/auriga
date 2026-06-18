@@ -1,0 +1,9 @@
+# Bun configuration for the Auriga monorepo.
+
+[install]
+# Use a text lockfile (bun.lock), committed to git.
+saveTextLockfile = true
+
+[test]
+# Bun test discovers *.test.ts across the workspace.
+coverage = false
