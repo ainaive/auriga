@@ -7,6 +7,8 @@ export interface JobRecord {
   spec: JobSpec;
   state: JobState;
   reason: string | null;
+  /** Model used to run the job (for cost accounting). */
+  model: string | null;
   usage: Usage;
   attempts: number;
   steps: number;

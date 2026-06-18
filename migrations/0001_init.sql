@@ -6,6 +6,7 @@ create table if not exists jobs (
   spec          jsonb not null,
   state         text not null,
   reason        text,
+  model         text,
   usage         jsonb not null default '{"input_tokens":0,"output_tokens":0}'::jsonb,
   attempts      integer not null default 0,
   steps         integer not null default 0,

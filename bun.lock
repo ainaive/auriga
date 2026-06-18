@@ -14,6 +14,27 @@
         "typescript": "^5.7.0",
       },
     },
+    "packages/capella": {
+      "name": "@auriga/capella",
+      "version": "0.0.0",
+      "dependencies": {
+        "@auriga/core": "workspace:*",
+      },
+    },
+    "packages/cli": {
+      "name": "@auriga/cli",
+      "version": "0.0.0",
+      "bin": {
+        "auriga": "src/main.ts",
+      },
+      "dependencies": {
+        "@auriga/capella": "workspace:*",
+        "@auriga/core": "workspace:*",
+        "@auriga/habenae": "workspace:*",
+        "@auriga/provider": "workspace:*",
+        "@auriga/sandbox": "workspace:*",
+      },
+    },
     "packages/core": {
       "name": "@auriga/core",
       "version": "0.0.0",
@@ -72,6 +93,10 @@
   },
   "packages": {
     "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.104.2", "", { "dependencies": { "json-schema-to-ts": "^3.1.1", "standardwebhooks": "^1.0.0" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-s1wEVDAtEwkS7Ajgep6PZKJLFqybRkmD3Byz+iVVsSpbDY0gjROXE9aOft6V3PMqynn3NTcycV5whga9tCzmKA=="],
+
+    "@auriga/capella": ["@auriga/capella@workspace:packages/capella"],
+
+    "@auriga/cli": ["@auriga/cli@workspace:packages/cli"],
 
     "@auriga/core": ["@auriga/core@workspace:packages/core"],
 

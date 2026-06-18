@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "bun test",
+    "test": "bun test packages scripts",
     "check": "bun run typecheck && bun run test"
   },
   "devDependencies": {

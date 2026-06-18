@@ -9,6 +9,7 @@ create table if not exists jobs (
   spec          jsonb not null,
   state         text not null,
   reason        text,
+  model         text,
   usage         jsonb not null default '{"input_tokens":0,"output_tokens":0}'::jsonb,
   attempts      integer not null default 0,
   steps         integer not null default 0,
@@ -30,6 +31,7 @@ export async function migrate(pool: Pool): Promise<void> {
 const UPDATABLE = new Set([
   "state",
   "reason",
+  "model",
   "usage",
   "attempts",
   "steps",
@@ -96,6 +98,7 @@ interface JobRow {
   spec: JobSpec;
   state: string;
   reason: string | null;
+  model: string | null;
   usage: JobRecord["usage"];
   attempts: number;
   steps: number;
@@ -110,6 +113,7 @@ function rowToRecord(row: JobRow): JobRecord {
     spec: row.spec,
     state: row.state as JobRecord["state"],
     reason: row.reason,
+    model: row.model,
     usage: row.usage,
     attempts: row.attempts,
     steps: row.steps,

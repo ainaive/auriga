@@ -20,6 +20,7 @@ export class InMemoryJobStore implements JobStore {
       spec,
       state: "pending",
       reason: null,
+      model: null,
       usage: { input_tokens: 0, output_tokens: 0 },
       attempts: 0,
       steps: 0,

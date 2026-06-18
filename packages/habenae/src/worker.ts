@@ -1,5 +1,5 @@
 import type { ModelProvider, SkillRegistry, VerificationKey } from "@auriga/core";
-import { runJob, type RunJobResult } from "@auriga/currus";
+import { runJob, type JobEvent, type RunJobResult } from "@auriga/currus";
 import type { CreateSandboxOptions, SandboxDriver } from "@auriga/sandbox";
 import type { JobStore, WorkerCheckpoint } from "./types";
 
@@ -12,6 +12,8 @@ export interface WorkerOptions {
   trustedKeys?: VerificationKey[];
   role?: string;
   maxAttempts?: number;
+  /** Progress hook (forwarded from the runner) for live CLI/console feedback. */
+  onEvent?: (event: JobEvent) => void;
   /** Test hook: throw after the checkpoint for this attempt is saved (simulate a crash). */
   crashAfterAttempt?: number;
 }
@@ -32,7 +34,7 @@ export class Worker {
 
     const checkpoint = await store.loadCheckpoint(jobId);
     const sandbox = await this.opts.sandboxDriver.create(seedFor(record, checkpoint));
-    await store.update(jobId, { state: checkpoint ? "running" : "planning" });
+    await store.update(jobId, { state: checkpoint ? "running" : "planning", model: this.opts.model });
 
     try {
       const result = await runJob({
@@ -44,6 +46,7 @@ export class Worker {
         ...(this.opts.trustedKeys ? { trustedKeys: this.opts.trustedKeys } : {}),
         ...(this.opts.role ? { role: this.opts.role } : {}),
         ...(this.opts.maxAttempts !== undefined ? { maxAttempts: this.opts.maxAttempts } : {}),
+        ...(this.opts.onEvent ? { onEvent: this.opts.onEvent } : {}),
         ...(checkpoint
           ? {
               resume: {
