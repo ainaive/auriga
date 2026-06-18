@@ -1,10 +1,21 @@
 import { test, expect } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const MAIN = fileURLToPath(new URL("./main.ts", import.meta.url));
+
+const SAMPLE_SPEC = {
+  id: "job_cli",
+  factio: "acme",
+  created_by: "u",
+  goal: "g",
+  context_refs: { workspace: { kind: "dir", url_or_path: "/tmp" } },
+  allowed_tools: ["write_file"],
+  acceptance_criteria: [{ kind: "file_exists", path: "answer.txt" }],
+  budget: { max_tokens: 1000, max_wall_time_s: 60, max_cost_usd: 1, max_steps: 10 },
+};
 
 async function runCli(args: string[], home: string) {
   const proc = Bun.spawn(["bun", MAIN, ...args], {
@@ -72,6 +83,39 @@ test("eval without a dir exits non-zero", async () => {
     const r = await runCli(["eval"], home);
     expect(r.code).toBe(1);
     expect(r.stderr).toContain("usage: auriga eval");
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("create then list --factio shows the tenant's job", async () => {
+  const home = await mkdtemp(join(tmpdir(), "auriga-cli-"));
+  const specDir = await mkdtemp(join(tmpdir(), "auriga-spec-")); // keep the spec out of the store dir
+  const specFile = join(specDir, "spec.json");
+  try {
+    await writeFile(specFile, JSON.stringify(SAMPLE_SPEC));
+    const created = await runCli(["create", specFile], home);
+    expect(created.code).toBe(0);
+    expect(created.stdout).toContain("created job_cli");
+
+    const listed = await runCli(["list", "--factio", "acme"], home);
+    expect(listed.stdout).toContain("job_cli");
+    expect(listed.stdout).toContain("[acme]");
+
+    const other = await runCli(["list", "--factio", "nobody"], home);
+    expect(other.stdout).toContain("no jobs in factio nobody");
+  } finally {
+    await rm(home, { recursive: true, force: true });
+    await rm(specDir, { recursive: true, force: true });
+  }
+});
+
+test("schedule on an empty store reports no pending jobs", async () => {
+  const home = await mkdtemp(join(tmpdir(), "auriga-cli-"));
+  try {
+    const r = await runCli(["schedule"], home);
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain("no pending jobs");
   } finally {
     await rm(home, { recursive: true, force: true });
   }

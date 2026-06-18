@@ -1,16 +1,22 @@
-import type { ModelProvider, SkillRegistry, VerificationKey } from "@auriga/core";
-import { Recorder } from "@auriga/capella";
+import type { ModelProvider, SkillRegistry, SkillUsageSink, VerificationKey } from "@auriga/core";
+import { Recorder, estimateCostUsd } from "@auriga/capella";
 import { runJob, type JobEvent, type RunJobResult } from "@auriga/currus";
+import type { ModelRouter } from "@auriga/provider";
 import type { CreateSandboxOptions, SandboxDriver } from "@auriga/sandbox";
 import type { JobStore, WorkerCheckpoint } from "./types";
 
 export interface WorkerOptions {
   store: JobStore;
   provider: ModelProvider;
+  /** Default model when no router is given. */
   model: string;
   sandboxDriver: SandboxDriver;
+  /** Per-job model routing (reasoning sandwich). Falls back to `model`. */
+  router?: ModelRouter;
   registry?: SkillRegistry;
   trustedKeys?: VerificationKey[];
+  /** Runtime → governance feedback sink for per-skill usage/success/cost. */
+  usageSink?: SkillUsageSink;
   role?: string;
   maxAttempts?: number;
   /** Progress hook (forwarded from the runner) for live CLI/console feedback. */
@@ -33,13 +39,18 @@ export class Worker {
     const record = await store.get(jobId);
     if (!record) throw new Error(`job not found: ${jobId}`);
 
+    // Per-job model routing (reasoning sandwich): a planning model + an act model.
+    const routed = this.opts.router?.route(record.spec);
+    const model = routed?.act ?? this.opts.model;
+    const planModel = routed?.plan;
+
     // HITL "pause first": short-circuit unapproved jobs BEFORE creating a sandbox,
     // so no resources are spent (and workspace seeding can't fail) before approval.
     if (record.spec.require_approval && !record.approved) {
       const reason = "awaiting human approval";
-      await store.update(jobId, { state: "paused", reason, model: this.opts.model });
+      await store.update(jobId, { state: "paused", reason, model });
       await store.saveTrace(
-        new Recorder(jobId, this.opts.model).finish({
+        new Recorder(jobId, model).finish({
           state: "paused",
           reason,
           attempts: 0,
@@ -62,14 +73,15 @@ export class Worker {
 
     const checkpoint = await store.loadCheckpoint(jobId);
     const sandbox = await this.opts.sandboxDriver.create(seedFor(record, checkpoint));
-    const recorder = new Recorder(jobId, this.opts.model);
+    const recorder = new Recorder(jobId, model);
 
     try {
-      await store.update(jobId, { state: checkpoint ? "running" : "planning", model: this.opts.model });
+      await store.update(jobId, { state: checkpoint ? "running" : "planning", model });
       const result = await runJob({
         spec: record.spec,
         provider: this.opts.provider,
-        model: this.opts.model,
+        model,
+        ...(planModel ? { planModel } : {}),
         sandbox,
         onTrace: recorder.record,
         approvalGate: { isApproved: async () => (await store.get(jobId))?.approved ?? false },
@@ -114,16 +126,15 @@ export class Worker {
         },
       });
 
-      await store.saveTrace(
-        recorder.finish({
-          state: result.state,
-          reason: result.reason,
-          attempts: result.attempts,
-          steps: result.steps,
-          usage: result.usage,
-          loaded_skills: result.loadedSkills,
-        }),
-      );
+      const trace = recorder.finish({
+        state: result.state,
+        reason: result.reason,
+        attempts: result.attempts,
+        steps: result.steps,
+        usage: result.usage,
+        loaded_skills: result.loadedSkills,
+      });
+      await store.saveTrace(trace);
       await store.update(jobId, {
         state: result.state,
         reason: result.reason,
@@ -132,6 +143,26 @@ export class Worker {
         steps: result.steps,
         loaded_skills: result.loadedSkills,
       });
+
+      // Runtime → governance feedback: attribute the job's cost across the skills
+      // it used. Use result.usage (cumulative across resumes), and make it
+      // best-effort so a feedback failure can't fail an already-persisted job.
+      if (this.opts.usageSink && result.state !== "paused" && result.loadedSkills.length > 0) {
+        const total = estimateCostUsd(model, result.usage);
+        const perSkill = Number.isFinite(total) ? total / result.loadedSkills.length : 0;
+        const sink = this.opts.usageSink;
+        const results = await Promise.allSettled(
+          result.loadedSkills.map((skill) =>
+            sink.recordUsage(skill.name, skill.version, {
+              success: result.state === "done",
+              cost_usd: perSkill,
+            }),
+          ),
+        );
+        for (const r of results) {
+          if (r.status === "rejected") console.warn(`[auriga] skill usage feedback failed: ${r.reason}`);
+        }
+      }
       return result;
     } finally {
       await sandbox.destroy();

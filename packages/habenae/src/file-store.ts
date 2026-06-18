@@ -41,6 +41,7 @@ export class FileJobStore implements JobStore {
       reason: null,
       model: null,
       approved: false,
+      retries: 0,
       usage: { input_tokens: 0, output_tokens: 0 },
       attempts: 0,
       steps: 0,
@@ -84,6 +85,10 @@ export class FileJobStore implements JobStore {
       .map((f) => f.slice(0, -".json".length));
     const records = await Promise.all(ids.map((id) => this.get(id)));
     return records.filter((r): r is JobRecord => r !== undefined);
+  }
+
+  async listByFactio(factio: string): Promise<JobRecord[]> {
+    return (await this.list()).filter((r) => r.spec.factio === factio);
   }
 
   async update(id: string, patch: JobPatch): Promise<void> {

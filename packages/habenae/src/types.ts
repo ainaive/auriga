@@ -11,6 +11,8 @@ export interface JobRecord {
   model: string | null;
   /** Human approval granted (HITL gate). */
   approved: boolean;
+  /** Number of control-plane retries already consumed. */
+  retries: number;
   usage: Usage;
   attempts: number;
   steps: number;
@@ -40,6 +42,8 @@ export interface JobStore {
   create(spec: JobSpec): Promise<JobRecord>;
   get(id: string): Promise<JobRecord | undefined>;
   list(): Promise<JobRecord[]>;
+  /** Tenant-scoped listing (multi-tenant isolation). */
+  listByFactio(factio: string): Promise<JobRecord[]>;
   update(id: string, patch: JobPatch): Promise<void>;
   saveCheckpoint(checkpoint: WorkerCheckpoint): Promise<void>;
   loadCheckpoint(jobId: string): Promise<WorkerCheckpoint | undefined>;

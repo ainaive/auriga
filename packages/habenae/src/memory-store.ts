@@ -24,6 +24,7 @@ export class InMemoryJobStore implements JobStore {
       reason: null,
       model: null,
       approved: false,
+      retries: 0,
       usage: { input_tokens: 0, output_tokens: 0 },
       attempts: 0,
       steps: 0,
@@ -42,6 +43,12 @@ export class InMemoryJobStore implements JobStore {
 
   async list(): Promise<JobRecord[]> {
     return [...this.jobs.values()].map((r) => structuredClone(r));
+  }
+
+  async listByFactio(factio: string): Promise<JobRecord[]> {
+    return [...this.jobs.values()]
+      .filter((r) => r.spec.factio === factio)
+      .map((r) => structuredClone(r));
   }
 
   async update(id: string, patch: JobPatch): Promise<void> {

@@ -14,7 +14,10 @@ import {
   type SkillFileEntry,
   type SkillMetadata,
   type SkillRegistry,
+  type SkillStats,
   type SkillType,
+  type SkillUsage,
+  type SkillUsageSink,
   type VerificationKey,
 } from "@auriga/core";
 import type { SkillBundleInput } from "./bundle";
@@ -25,6 +28,12 @@ interface SkillMeta {
   type: SkillType;
   versions: string[];
   latest: string;
+}
+
+interface UsageRecord {
+  uses: number;
+  successes: number;
+  total_cost_usd: number;
 }
 
 /**
@@ -38,7 +47,7 @@ interface SkillMeta {
  *
  * resolve() touches only meta.json (progressive disclosure — no blobs loaded).
  */
-export class LocalSkillRegistry implements SkillRegistry {
+export class LocalSkillRegistry implements SkillRegistry, SkillUsageSink {
   private readonly baseDir: string;
   private readonly keypair: Ed25519Keypair;
 
@@ -110,6 +119,54 @@ export class LocalSkillRegistry implements SkillRegistry {
       return JSON.parse(await readFile(path, "utf8")) as SignedSkillArtifact;
     } catch (cause) {
       throw new Error(`skill not found: ${name}@${version}`, { cause });
+    }
+  }
+
+  /**
+   * Runtime → governance feedback: aggregate per-skill usage/success/cost.
+   * Serialized per registry instance so concurrent workers in this process don't
+   * lose updates via read-modify-write races. (Cross-process atomicity is the
+   * real platform's responsibility.)
+   */
+  recordUsage(name: string, _version: string, usage: SkillUsage): Promise<void> {
+    const run = this.usageChain.then(() => this.applyUsage(name, usage));
+    this.usageChain = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
+  private usageChain: Promise<void> = Promise.resolve();
+
+  private async applyUsage(name: string, usage: SkillUsage): Promise<void> {
+    const dir = join(this.baseDir, name);
+    await mkdir(dir, { recursive: true });
+    const rec = (await this.readUsage(name)) ?? { uses: 0, successes: 0, total_cost_usd: 0 };
+    rec.uses += 1;
+    if (usage.success) rec.successes += 1;
+    if (Number.isFinite(usage.cost_usd)) rec.total_cost_usd += usage.cost_usd;
+    await writeFile(join(dir, "usage.json"), `${JSON.stringify(rec, null, 2)}\n`);
+  }
+
+  async stats(name: string): Promise<SkillStats> {
+    const rec = await this.readUsage(name);
+    return {
+      name,
+      uses: rec?.uses ?? 0,
+      successes: rec?.successes ?? 0,
+      total_cost_usd: rec?.total_cost_usd ?? 0,
+    };
+  }
+
+  private async readUsage(name: string): Promise<UsageRecord | undefined> {
+    try {
+      return JSON.parse(await readFile(join(this.baseDir, name, "usage.json"), "utf8")) as UsageRecord;
+    } catch (err) {
+      // Only "absent" is benign; surface corruption/permission errors so we don't
+      // silently reinitialize and overwrite valid historical stats.
+      if ((err as { code?: string }).code === "ENOENT") return undefined;
+      throw err;
     }
   }
 

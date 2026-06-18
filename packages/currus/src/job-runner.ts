@@ -60,6 +60,8 @@ export interface RunJobOptions {
   trustedKeys?: VerificationKey[];
   role?: string;
   namedChecks?: Record<string, NamedCheck>;
+  /** Model for the planning step of each attempt (reasoning sandwich). */
+  planModel?: string;
   /** Verify-retry attempts (default 3). */
   maxAttempts?: number;
   /** Steps per execute phase (default derived from the budget). */
@@ -168,6 +170,7 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
     const loopRes = await runLoop({
       provider,
       model,
+      ...(opts.planModel ? { planModel: opts.planModel } : {}),
       system,
       messages,
       dispatcher,

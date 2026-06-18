@@ -5,3 +5,9 @@
 export { AnthropicProvider, type AnthropicProviderOptions } from "./anthropic";
 export { StubProvider } from "./stub";
 export { MODELS, type ModelHandle } from "./models";
+export {
+  staticRouter,
+  reasoningSandwich,
+  type ModelRouter,
+  type RoutedModels,
+} from "./router";

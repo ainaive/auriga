@@ -79,12 +79,13 @@
         "@auriga/capella": "workspace:*",
         "@auriga/core": "workspace:*",
         "@auriga/currus": "workspace:*",
+        "@auriga/provider": "workspace:*",
         "@auriga/sandbox": "workspace:*",
         "graphile-worker": "^0.17.2",
         "pg": "^8.21.0",
       },
       "devDependencies": {
-        "@auriga/provider": "workspace:*",
+        "@auriga/skill-registry": "workspace:*",
       },
     },
     "packages/provider": {

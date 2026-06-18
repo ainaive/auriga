@@ -98,3 +98,22 @@ export interface SkillRegistry {
   /** Fetch the full signed artifact for a specific version. */
   fetch(name: string, version: string): Promise<SignedSkillArtifact>;
 }
+
+/** One usage observation fed back from the runtime to governance. */
+export interface SkillUsage {
+  success: boolean;
+  cost_usd: number;
+}
+
+/** Aggregated usage stats for a skill (drives governance decisions). */
+export interface SkillStats {
+  name: string;
+  uses: number;
+  successes: number;
+  total_cost_usd: number;
+}
+
+/** The runtime → governance feedback channel. */
+export interface SkillUsageSink {
+  recordUsage(name: string, version: string, usage: SkillUsage): Promise<void>;
+}
