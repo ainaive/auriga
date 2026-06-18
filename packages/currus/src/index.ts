@@ -5,6 +5,12 @@
  */
 export { runLoop, type RunLoopOptions, type LoopResult } from "./loop";
 export { ToolDispatcher, type ToolDispatchResult } from "./dispatcher";
+export {
+  VerificationGate,
+  type VerificationResult,
+  type CriterionResult,
+  type NamedCheck,
+} from "./verification";
 export type { Tool } from "./tool";
 export { echoTool } from "./tools/echo";
 export { makeSandboxTools } from "./tools/sandbox-tools";
