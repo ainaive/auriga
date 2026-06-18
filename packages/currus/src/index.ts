@@ -25,6 +25,12 @@ export {
   type CompactionResult,
 } from "./context";
 export { WorkspaceMemory, makeMemoryTools } from "./memory";
+export {
+  runJob,
+  type RunJobOptions,
+  type RunJobResult,
+  type JobEvent,
+} from "./job-runner";
 export type { Tool } from "./tool";
 export { echoTool } from "./tools/echo";
 export { makeSandboxTools } from "./tools/sandbox-tools";
