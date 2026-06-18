@@ -15,5 +15,8 @@
     "@auriga/core": "workspace:*",
     "@auriga/provider": "workspace:*",
     "@auriga/sandbox": "workspace:*"
+  },
+  "devDependencies": {
+    "@auriga/skill-registry": "workspace:*"
   }
 }

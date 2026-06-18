@@ -47,12 +47,18 @@ export async function verifyContentHash(
   signatureB64: string,
   publicKeyRawB64: string,
 ): Promise<boolean> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    b64Decode(publicKeyRawB64),
-    ED25519,
-    false,
-    ["verify"],
-  );
-  return crypto.subtle.verify(ED25519, key, b64Decode(signatureB64), utf8Bytes(contentHash));
+  // Inputs are untrusted: a malformed key/signature must fail closed (false),
+  // never throw — otherwise a bad artifact could crash the verifier.
+  try {
+    const key = await crypto.subtle.importKey(
+      "raw",
+      b64Decode(publicKeyRawB64),
+      ED25519,
+      false,
+      ["verify"],
+    );
+    return await crypto.subtle.verify(ED25519, key, b64Decode(signatureB64), utf8Bytes(contentHash));
+  } catch {
+    return false;
+  }
 }

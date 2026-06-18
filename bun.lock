@@ -29,6 +29,9 @@
         "@auriga/provider": "workspace:*",
         "@auriga/sandbox": "workspace:*",
       },
+      "devDependencies": {
+        "@auriga/skill-registry": "workspace:*",
+      },
     },
     "packages/provider": {
       "name": "@auriga/provider",

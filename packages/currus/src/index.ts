@@ -11,6 +11,12 @@ export {
   type CriterionResult,
   type NamedCheck,
 } from "./verification";
+export {
+  SkillResolver,
+  makeSelectSkillTool,
+  type SkillResolverOptions,
+  type MountedSkill,
+} from "./skills";
 export type { Tool } from "./tool";
 export { echoTool } from "./tools/echo";
 export { makeSandboxTools } from "./tools/sandbox-tools";
