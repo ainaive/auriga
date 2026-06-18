@@ -7,5 +7,11 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts"
+  },
+  "scripts": {
+    "emit-schema": "bun scripts/emit-schema.ts"
+  },
+  "dependencies": {
+    "zod": "^4.0.0"
   }
 }
