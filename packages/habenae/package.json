@@ -1,5 +1,5 @@
 {
-  "name": "@auriga/currus",
+  "name": "@auriga/habenae",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -8,15 +8,14 @@
   "exports": {
     ".": "./src/index.ts"
   },
-  "scripts": {
-    "hello": "bun scripts/hello.ts"
-  },
   "dependencies": {
     "@auriga/core": "workspace:*",
-    "@auriga/provider": "workspace:*",
-    "@auriga/sandbox": "workspace:*"
+    "@auriga/currus": "workspace:*",
+    "@auriga/sandbox": "workspace:*",
+    "graphile-worker": "^0.17.2",
+    "pg": "^8.21.0"
   },
   "devDependencies": {
-    "@auriga/skill-registry": "workspace:*"
+    "@auriga/provider": "workspace:*"
   }
 }

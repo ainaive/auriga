@@ -5,22 +5,32 @@ import {
   toolUses,
   type Message,
   type ModelProvider,
-  type ToolDefinition,
   type ToolResultBlock,
   type Usage,
 } from "@auriga/core";
+import { compactMessages, type CompactionOptions } from "./context";
+import { ToolDispatcher } from "./dispatcher";
 import type { Tool } from "./tool";
 
 export interface RunLoopOptions {
   provider: ModelProvider;
   model: string;
   messages: Message[];
+  /** Tools to register (ignored if `dispatcher` is given). */
   tools?: Tool[];
+  /** Code-level allowlist applied to `tools` (ignored if `dispatcher` is given). */
+  allowedTools?: string[];
+  /** A pre-built dispatcher; takes precedence over `tools`/`allowedTools`. */
+  dispatcher?: ToolDispatcher;
   system?: string;
   /** Hard cap on iterations (a budget backstop). */
   maxSteps?: number;
   /** max_tokens per model call. */
   maxTokens?: number;
+  /** Compact the window before a model call once it exceeds this budget. */
+  compaction?: CompactionOptions;
+  /** Called with messages dropped during compaction (e.g. to offload to disk). */
+  onCompact?: (dropped: Message[]) => void | Promise<void>;
 }
 
 export interface LoopResult {
@@ -40,18 +50,21 @@ export interface LoopResult {
  * is hit. This is the seed of the Plan-Execute-Verify loop expanded in Phase 1.
  */
 export async function runLoop(opts: RunLoopOptions): Promise<LoopResult> {
-  const tools = opts.tools ?? [];
-  const toolDefs: ToolDefinition[] = tools.map((t) => ({
-    name: t.name,
-    description: t.description,
-    input_schema: t.input_schema,
-  }));
-  const byName = new Map(tools.map((t) => [t.name, t]));
+  const dispatcher =
+    opts.dispatcher ?? new ToolDispatcher(opts.tools ?? [], opts.allowedTools);
+  const toolDefs = dispatcher.definitions();
   const messages = [...opts.messages];
   const maxSteps = opts.maxSteps ?? 10;
   const usage: Usage = { input_tokens: 0, output_tokens: 0 };
 
   for (let step = 1; step <= maxSteps; step++) {
+    if (opts.compaction) {
+      const c = compactMessages(messages, opts.compaction);
+      if (c.compacted) {
+        messages.splice(0, messages.length, ...c.messages);
+        if (opts.onCompact) await opts.onCompact(c.dropped);
+      }
+    }
     const res = await opts.provider.complete({
       model: opts.model,
       // snapshot: the provider must see the state at call time, not a live ref
@@ -71,18 +84,8 @@ export async function runLoop(opts: RunLoopOptions): Promise<LoopResult> {
 
     const results: ToolResultBlock[] = [];
     for (const call of calls) {
-      const tool = byName.get(call.name);
-      if (!tool) {
-        results.push(toolResultBlock(call.id, `unknown tool: ${call.name}`, true));
-        continue;
-      }
-      try {
-        const output = await tool.run(call.input);
-        results.push(toolResultBlock(call.id, output));
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        results.push(toolResultBlock(call.id, `tool error: ${message}`, true));
-      }
+      const r = await dispatcher.dispatch(call.name, call.input);
+      results.push(toolResultBlock(call.id, r.content, r.isError));
     }
     messages.push(toolResultMessage(results));
   }

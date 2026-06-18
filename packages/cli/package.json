@@ -1,0 +1,16 @@
+{
+  "name": "@auriga/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "auriga": "src/main.ts"
+  },
+  "dependencies": {
+    "@auriga/core": "workspace:*",
+    "@auriga/capella": "workspace:*",
+    "@auriga/habenae": "workspace:*",
+    "@auriga/provider": "workspace:*",
+    "@auriga/sandbox": "workspace:*"
+  }
+}

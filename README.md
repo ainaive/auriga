@@ -59,4 +59,41 @@ docker compose up -d # start Postgres + MinIO (requires Docker)
 ## Status
 
 Under active construction — see `~/.claude/plans/auriga-implementation-starry-nest.md` for the phased plan.
-Phase 0 (contracts + foundation) is in progress.
+
+- **Phase 0 — contracts + foundation:** ✅ done (job schema, provider seam, skill contract + verify, interim registry, hello-world loop).
+- **Phase 1 — minimum viable harness:** ✅ done. One job type ("fix a failing test → green") runs end to end: submit a spec → Plan-Execute-Verify loop in an isolated sandbox with allowlisted tools → a skill loaded via the full seam (progressive disclosure → fetch → signature-verify → mount) → verification gate runs the acceptance command → `done` only on pass; checkpoint/resume on a fresh worker; token + cost recorded.
+
+### Try it
+
+```bash
+bun install
+bun run check                      # typecheck + tests (110+ tests, no Docker needed)
+cd packages/currus && bun run hello   # hello-world loop (stub; set ANTHROPIC_API_KEY for live)
+```
+
+Run a job (needs `ANTHROPIC_API_KEY`). Write a job spec, e.g. `job.json`:
+
+```json
+{
+  "id": "job_fix_add",
+  "factio": "default",
+  "created_by": "you@example.com",
+  "goal": "Fix the bug in src/add.ts so the test suite passes.",
+  "context_refs": { "workspace": { "kind": "dir", "url_or_path": "./fixtures/failing-test" } },
+  "allowed_tools": ["read_file", "write_file", "bash", "git", "search"],
+  "acceptance_criteria": [{ "kind": "command", "cmd": "bun test", "expect_exit": 0 }],
+  "budget": { "max_tokens": 200000, "max_wall_time_s": 600, "max_cost_usd": 5, "max_steps": 30 }
+}
+```
+
+```bash
+# during development (run the source directly):
+bun packages/cli/src/main.ts submit job.json
+bun packages/cli/src/main.ts status job_fix_add
+
+# or, once installed (the package exposes an `auriga` bin):
+auriga submit job.json
+```
+
+Without Docker, the CLI falls back to the non-isolated Local sandbox (with a warning);
+set `AURIGA_REQUIRE_DOCKER=1` to require real isolation.

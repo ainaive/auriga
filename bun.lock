@@ -14,6 +14,27 @@
         "typescript": "^5.7.0",
       },
     },
+    "packages/capella": {
+      "name": "@auriga/capella",
+      "version": "0.0.0",
+      "dependencies": {
+        "@auriga/core": "workspace:*",
+      },
+    },
+    "packages/cli": {
+      "name": "@auriga/cli",
+      "version": "0.0.0",
+      "bin": {
+        "auriga": "src/main.ts",
+      },
+      "dependencies": {
+        "@auriga/capella": "workspace:*",
+        "@auriga/core": "workspace:*",
+        "@auriga/habenae": "workspace:*",
+        "@auriga/provider": "workspace:*",
+        "@auriga/sandbox": "workspace:*",
+      },
+    },
     "packages/core": {
       "name": "@auriga/core",
       "version": "0.0.0",
@@ -27,6 +48,24 @@
       "dependencies": {
         "@auriga/core": "workspace:*",
         "@auriga/provider": "workspace:*",
+        "@auriga/sandbox": "workspace:*",
+      },
+      "devDependencies": {
+        "@auriga/skill-registry": "workspace:*",
+      },
+    },
+    "packages/habenae": {
+      "name": "@auriga/habenae",
+      "version": "0.0.0",
+      "dependencies": {
+        "@auriga/core": "workspace:*",
+        "@auriga/currus": "workspace:*",
+        "@auriga/sandbox": "workspace:*",
+        "graphile-worker": "^0.17.2",
+        "pg": "^8.21.0",
+      },
+      "devDependencies": {
+        "@auriga/provider": "workspace:*",
       },
     },
     "packages/provider": {
@@ -34,6 +73,13 @@
       "version": "0.0.0",
       "dependencies": {
         "@anthropic-ai/sdk": "^0.104.2",
+        "@auriga/core": "workspace:*",
+      },
+    },
+    "packages/sandbox": {
+      "name": "@auriga/sandbox",
+      "version": "0.0.0",
+      "dependencies": {
         "@auriga/core": "workspace:*",
       },
     },
@@ -48,11 +94,19 @@
   "packages": {
     "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.104.2", "", { "dependencies": { "json-schema-to-ts": "^3.1.1", "standardwebhooks": "^1.0.0" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-s1wEVDAtEwkS7Ajgep6PZKJLFqybRkmD3Byz+iVVsSpbDY0gjROXE9aOft6V3PMqynn3NTcycV5whga9tCzmKA=="],
 
+    "@auriga/capella": ["@auriga/capella@workspace:packages/capella"],
+
+    "@auriga/cli": ["@auriga/cli@workspace:packages/cli"],
+
     "@auriga/core": ["@auriga/core@workspace:packages/core"],
 
     "@auriga/currus": ["@auriga/currus@workspace:packages/currus"],
 
+    "@auriga/habenae": ["@auriga/habenae@workspace:packages/habenae"],
+
     "@auriga/provider": ["@auriga/provider@workspace:packages/provider"],
+
+    "@auriga/sandbox": ["@auriga/sandbox@workspace:packages/sandbox"],
 
     "@auriga/skill-registry": ["@auriga/skill-registry@workspace:packages/skill-registry"],
 

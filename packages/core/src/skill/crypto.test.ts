@@ -20,3 +20,10 @@ test("a tampered payload fails verification", async () => {
   const sig = await signContentHash("deadbeef", kp.private_key);
   expect(await verifyContentHash("deadbee0", sig, kp.public_key)).toBe(false);
 });
+
+test("a malformed key fails closed (returns false, does not throw)", async () => {
+  const kp = await generateSigningKeypair("dev-1");
+  const sig = await signContentHash("deadbeef", kp.private_key);
+  expect(await verifyContentHash("deadbeef", sig, "AAAA")).toBe(false);
+  expect(await verifyContentHash("deadbeef", "not-base64-sig!!", kp.public_key)).toBe(false);
+});
