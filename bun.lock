@@ -37,6 +37,13 @@
         "@auriga/core": "workspace:*",
       },
     },
+    "packages/sandbox": {
+      "name": "@auriga/sandbox",
+      "version": "0.0.0",
+      "dependencies": {
+        "@auriga/core": "workspace:*",
+      },
+    },
     "packages/skill-registry": {
       "name": "@auriga/skill-registry",
       "version": "0.0.0",
@@ -53,6 +60,8 @@
     "@auriga/currus": ["@auriga/currus@workspace:packages/currus"],
 
     "@auriga/provider": ["@auriga/provider@workspace:packages/provider"],
+
+    "@auriga/sandbox": ["@auriga/sandbox@workspace:packages/sandbox"],
 
     "@auriga/skill-registry": ["@auriga/skill-registry@workspace:packages/skill-registry"],
 
