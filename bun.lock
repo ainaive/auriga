@@ -29,6 +29,13 @@
         "@auriga/core": "workspace:*",
       },
     },
+    "packages/skill-registry": {
+      "name": "@auriga/skill-registry",
+      "version": "0.0.0",
+      "dependencies": {
+        "@auriga/core": "workspace:*",
+      },
+    },
   },
   "packages": {
     "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.104.2", "", { "dependencies": { "json-schema-to-ts": "^3.1.1", "standardwebhooks": "^1.0.0" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-s1wEVDAtEwkS7Ajgep6PZKJLFqybRkmD3Byz+iVVsSpbDY0gjROXE9aOft6V3PMqynn3NTcycV5whga9tCzmKA=="],
@@ -36,6 +43,8 @@
     "@auriga/core": ["@auriga/core@workspace:packages/core"],
 
     "@auriga/provider": ["@auriga/provider@workspace:packages/provider"],
+
+    "@auriga/skill-registry": ["@auriga/skill-registry@workspace:packages/skill-registry"],
 
     "@babel/code-frame": ["@babel/code-frame@7.29.7", "", { "dependencies": { "@babel/helper-validator-identifier": "^7.29.7", "js-tokens": "^4.0.0", "picocolors": "^1.1.1" } }, "sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw=="],
 

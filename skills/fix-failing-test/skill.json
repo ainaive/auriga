@@ -1,0 +1,6 @@
+{
+  "name": "fix-failing-test",
+  "version": "1.0.0",
+  "description": "Locate and fix a failing test in a JS/TS repo, then make the suite pass.",
+  "type": "knowledge"
+}
