@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@auriga/core": "workspace:*",
-    "@auriga/provider": "workspace:*"
+    "@auriga/provider": "workspace:*",
+    "@auriga/sandbox": "workspace:*"
   }
 }

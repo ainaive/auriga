@@ -27,6 +27,7 @@
       "dependencies": {
         "@auriga/core": "workspace:*",
         "@auriga/provider": "workspace:*",
+        "@auriga/sandbox": "workspace:*",
       },
     },
     "packages/provider": {
