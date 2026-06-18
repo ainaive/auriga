@@ -75,6 +75,7 @@
       "name": "@auriga/habenae",
       "version": "0.0.0",
       "dependencies": {
+        "@auriga/capella": "workspace:*",
         "@auriga/core": "workspace:*",
         "@auriga/currus": "workspace:*",
         "@auriga/sandbox": "workspace:*",

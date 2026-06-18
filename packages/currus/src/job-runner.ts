@@ -22,6 +22,11 @@ import { VerificationGate, type NamedCheck, type VerificationResult } from "./ve
 /** Harness-internal tools that are always available regardless of the job allowlist. */
 const HARNESS_TOOLS = ["update_todo", "read_todo", "note", "select_skill"];
 
+/** HITL gate: whether this job has human approval to execute. */
+export interface ApprovalGate {
+  isApproved(): Promise<boolean>;
+}
+
 export type JobEvent =
   | { type: "attempt"; attempt: number; steps: number; usage: Usage }
   | { type: "verify"; attempt: number; passed: boolean; evidence: string };
@@ -63,6 +68,8 @@ export interface RunJobOptions {
   onEvent?: (event: JobEvent) => void;
   /** Trace hook: full event stream (model responses, tool calls, skills, verify). */
   onTrace?: (event: TraceEvent) => void;
+  /** HITL gate consulted before execution when spec.require_approval is set. */
+  approvalGate?: ApprovalGate;
   /** Resume from a prior checkpoint instead of starting fresh. */
   resume?: JobResumeState;
   /** Called after each verify so the worker can snapshot + persist a checkpoint. */
@@ -70,7 +77,7 @@ export interface RunJobOptions {
 }
 
 export interface RunJobResult {
-  state: "done" | "failed";
+  state: "done" | "failed" | "paused";
   reason: string;
   attempts: number;
   steps: number;
@@ -141,6 +148,11 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
   let totalSteps = opts.resume?.steps ?? 0;
   const startAttempt = opts.resume?.startAttempt ?? 1;
   let verification: VerificationResult | null = null;
+
+  // HITL gate: pause before doing any work until a human approves.
+  if (spec.require_approval && opts.approvalGate && !(await opts.approvalGate.isApproved())) {
+    return finish("paused", "awaiting human approval", 0);
+  }
 
   for (let attempt = startAttempt; attempt <= maxAttempts; attempt++) {
     const remainingSteps = spec.budget.max_steps - totalSteps;
@@ -222,7 +234,11 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
     };
   }
 
-  function finish(state: "done" | "failed", reason: string, attempt = maxAttempts): RunJobResult {
+  function finish(
+    state: "done" | "failed" | "paused",
+    reason: string,
+    attempt = maxAttempts,
+  ): RunJobResult {
     return {
       state,
       reason,

@@ -44,6 +44,49 @@ test("runs a job to done and persists the final state", async () => {
   expect(record?.attempts).toBe(1);
 });
 
+test("persists a trace with model + verify events for the run", async () => {
+  const store = new InMemoryJobStore();
+  await store.create(spec("job_traced"));
+  await new Worker({
+    store,
+    provider: new StubProvider([
+      toolUseResponse("write_file", { path: "answer.txt", content: "x" }),
+      textResponse("done"),
+    ]),
+    model: "stub",
+    sandboxDriver: new LocalSandboxDriver(),
+  }).run("job_traced");
+
+  const trace = await store.loadTrace("job_traced");
+  expect(trace?.result.state).toBe("done");
+  expect(trace?.events.some((e) => e.type === "model_response")).toBe(true);
+  expect(trace?.events.some((e) => e.type === "verify")).toBe(true);
+});
+
+test("require_approval pauses the job until approved, then completes (HITL)", async () => {
+  const store = new InMemoryJobStore();
+  await store.create({ ...spec("job_hitl"), require_approval: true });
+  const worker = new Worker({
+    store,
+    provider: new StubProvider([
+      toolUseResponse("write_file", { path: "answer.txt", content: "x" }),
+      textResponse("done"),
+    ]),
+    model: "stub",
+    sandboxDriver: new LocalSandboxDriver(),
+  });
+
+  const first = await worker.run("job_hitl");
+  expect(first.state).toBe("paused");
+  expect((await store.get("job_hitl"))?.state).toBe("paused");
+
+  // a human approves, then the worker is re-run
+  await store.update("job_hitl", { approved: true });
+  const second = await worker.run("job_hitl");
+  expect(second.state).toBe("done");
+  expect((await store.get("job_hitl"))?.state).toBe("done");
+});
+
 test("resumes on a fresh worker after a crash, restoring workspace + transcript", async () => {
   const store = new InMemoryJobStore();
   await store.create(spec("job_resume"));

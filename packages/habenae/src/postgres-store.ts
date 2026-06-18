@@ -1,5 +1,5 @@
 import { Pool } from "pg";
-import type { JobSpec } from "@auriga/core";
+import type { JobSpec, Trace } from "@auriga/core";
 import type { JobPatch, JobRecord, JobStore, WorkerCheckpoint } from "./types";
 
 /** Schema for the Postgres-backed store (also mirrored in migrations/0001_init.sql). */
@@ -10,6 +10,7 @@ create table if not exists jobs (
   state         text not null,
   reason        text,
   model         text,
+  approved      boolean not null default false,
   usage         jsonb not null default '{"input_tokens":0,"output_tokens":0}'::jsonb,
   attempts      integer not null default 0,
   steps         integer not null default 0,
@@ -18,6 +19,11 @@ create table if not exists jobs (
   updated_at    timestamptz not null default now()
 );
 create table if not exists checkpoints (
+  job_id     text primary key references jobs(id) on delete cascade,
+  data       jsonb not null,
+  updated_at timestamptz not null default now()
+);
+create table if not exists traces (
   job_id     text primary key references jobs(id) on delete cascade,
   data       jsonb not null,
   updated_at timestamptz not null default now()
@@ -32,6 +38,7 @@ const UPDATABLE = new Set([
   "state",
   "reason",
   "model",
+  "approved",
   "usage",
   "attempts",
   "steps",
@@ -92,6 +99,19 @@ export class PostgresJobStore implements JobStore {
     const res = await this.pool.query(`select data from checkpoints where job_id = $1`, [jobId]);
     return res.rows[0] ? (res.rows[0].data as WorkerCheckpoint) : undefined;
   }
+
+  async saveTrace(trace: Trace): Promise<void> {
+    await this.pool.query(
+      `insert into traces (job_id, data) values ($1, $2)
+       on conflict (job_id) do update set data = excluded.data, updated_at = now()`,
+      [trace.job_id, JSON.stringify(trace)],
+    );
+  }
+
+  async loadTrace(jobId: string): Promise<Trace | undefined> {
+    const res = await this.pool.query(`select data from traces where job_id = $1`, [jobId]);
+    return res.rows[0] ? (res.rows[0].data as Trace) : undefined;
+  }
 }
 
 interface JobRow {
@@ -100,6 +120,7 @@ interface JobRow {
   state: string;
   reason: string | null;
   model: string | null;
+  approved: boolean;
   usage: JobRecord["usage"];
   attempts: number;
   steps: number;
@@ -115,6 +136,7 @@ function rowToRecord(row: JobRow): JobRecord {
     state: row.state as JobRecord["state"],
     reason: row.reason,
     model: row.model,
+    approved: row.approved,
     usage: row.usage,
     attempts: row.attempts,
     steps: row.steps,

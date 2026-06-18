@@ -1,4 +1,5 @@
 import type { ModelProvider, SkillRegistry, VerificationKey } from "@auriga/core";
+import { Recorder } from "@auriga/capella";
 import { runJob, type JobEvent, type RunJobResult } from "@auriga/currus";
 import type { CreateSandboxOptions, SandboxDriver } from "@auriga/sandbox";
 import type { JobStore, WorkerCheckpoint } from "./types";
@@ -34,6 +35,7 @@ export class Worker {
 
     const checkpoint = await store.loadCheckpoint(jobId);
     const sandbox = await this.opts.sandboxDriver.create(seedFor(record, checkpoint));
+    const recorder = new Recorder(jobId, this.opts.model);
 
     try {
       await store.update(jobId, { state: checkpoint ? "running" : "planning", model: this.opts.model });
@@ -42,6 +44,8 @@ export class Worker {
         provider: this.opts.provider,
         model: this.opts.model,
         sandbox,
+        onTrace: recorder.record,
+        approvalGate: { isApproved: async () => (await store.get(jobId))?.approved ?? false },
         ...(this.opts.registry ? { registry: this.opts.registry } : {}),
         ...(this.opts.trustedKeys ? { trustedKeys: this.opts.trustedKeys } : {}),
         ...(this.opts.role ? { role: this.opts.role } : {}),
@@ -83,6 +87,16 @@ export class Worker {
         },
       });
 
+      await store.saveTrace(
+        recorder.finish({
+          state: result.state,
+          reason: result.reason,
+          attempts: result.attempts,
+          steps: result.steps,
+          usage: result.usage,
+          loaded_skills: result.loadedSkills,
+        }),
+      );
       await store.update(jobId, {
         state: result.state,
         reason: result.reason,

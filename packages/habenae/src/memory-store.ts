@@ -1,4 +1,4 @@
-import type { JobSpec } from "@auriga/core";
+import type { JobSpec, Trace } from "@auriga/core";
 import type { JobPatch, JobRecord, JobStore, WorkerCheckpoint } from "./types";
 
 function nowIso(): string {
@@ -12,6 +12,7 @@ function nowIso(): string {
 export class InMemoryJobStore implements JobStore {
   private readonly jobs = new Map<string, JobRecord>();
   private readonly checkpoints = new Map<string, WorkerCheckpoint>();
+  private readonly traces = new Map<string, Trace>();
 
   async create(spec: JobSpec): Promise<JobRecord> {
     if (this.jobs.has(spec.id)) throw new Error(`job already exists: ${spec.id}`);
@@ -22,6 +23,7 @@ export class InMemoryJobStore implements JobStore {
       state: "pending",
       reason: null,
       model: null,
+      approved: false,
       usage: { input_tokens: 0, output_tokens: 0 },
       attempts: 0,
       steps: 0,
@@ -58,6 +60,16 @@ export class InMemoryJobStore implements JobStore {
   async loadCheckpoint(jobId: string): Promise<WorkerCheckpoint | undefined> {
     const cp = this.checkpoints.get(jobId);
     return cp ? structuredClone(cp) : undefined;
+  }
+
+  async saveTrace(trace: Trace): Promise<void> {
+    if (!this.jobs.has(trace.job_id)) throw new Error(`job not found: ${trace.job_id}`);
+    this.traces.set(trace.job_id, structuredClone(trace));
+  }
+
+  async loadTrace(jobId: string): Promise<Trace | undefined> {
+    const t = this.traces.get(jobId);
+    return t ? structuredClone(t) : undefined;
   }
 }
 

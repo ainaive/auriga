@@ -1,4 +1,4 @@
-import type { JobSpec, JobState, LoadedSkill, Message, Usage } from "@auriga/core";
+import type { JobSpec, JobState, LoadedSkill, Message, Trace, Usage } from "@auriga/core";
 import type { SandboxSnapshot } from "@auriga/sandbox";
 
 /** The persisted job row. */
@@ -9,6 +9,8 @@ export interface JobRecord {
   reason: string | null;
   /** Model used to run the job (for cost accounting). */
   model: string | null;
+  /** Human approval granted (HITL gate). */
+  approved: boolean;
   usage: Usage;
   attempts: number;
   steps: number;
@@ -33,7 +35,7 @@ export interface WorkerCheckpoint {
 
 export type JobPatch = Partial<Omit<JobRecord, "id" | "spec" | "created_at">>;
 
-/** Persistence for jobs + checkpoints. In-memory (dev/tests) and Postgres (prod). */
+/** Persistence for jobs + checkpoints + traces. In-memory (dev/tests) and Postgres (prod). */
 export interface JobStore {
   create(spec: JobSpec): Promise<JobRecord>;
   get(id: string): Promise<JobRecord | undefined>;
@@ -41,6 +43,8 @@ export interface JobStore {
   update(id: string, patch: JobPatch): Promise<void>;
   saveCheckpoint(checkpoint: WorkerCheckpoint): Promise<void>;
   loadCheckpoint(jobId: string): Promise<WorkerCheckpoint | undefined>;
+  saveTrace(trace: Trace): Promise<void>;
+  loadTrace(jobId: string): Promise<Trace | undefined>;
 }
 
 /** A durable job queue. In-process (dev/tests) and graphile-worker (prod). */

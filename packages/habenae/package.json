@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@auriga/core": "workspace:*",
+    "@auriga/capella": "workspace:*",
     "@auriga/currus": "workspace:*",
     "@auriga/sandbox": "workspace:*",
     "graphile-worker": "^0.17.2",
