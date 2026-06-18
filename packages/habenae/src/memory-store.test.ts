@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test";
-import type { JobSpec } from "@auriga/core";
+import type { JobSpec, Trace } from "@auriga/core";
 import { InMemoryJobStore, InProcessQueue } from "./memory-store";
 
 function spec(id: string): JobSpec {
@@ -76,6 +76,27 @@ test("checkpoint save / load round trip", async () => {
   const cp = await store.loadCheckpoint("job_1");
   expect(cp?.next_attempt).toBe(2);
   expect(cp?.workspace["a.txt"]).toBe("eA==");
+});
+
+test("saveTrace round trip + orphan rejection", async () => {
+  const store = new InMemoryJobStore();
+  await store.create(spec("job_t"));
+  const t: Trace = {
+    job_id: "job_t",
+    model: "stub",
+    events: [],
+    result: {
+      state: "done",
+      reason: "ok",
+      attempts: 1,
+      steps: 0,
+      usage: { input_tokens: 0, output_tokens: 0 },
+      loaded_skills: [],
+    },
+  };
+  await store.saveTrace(t);
+  expect((await store.loadTrace("job_t"))?.model).toBe("stub");
+  await expect(store.saveTrace({ ...t, job_id: "ghost" })).rejects.toThrow(/not found/);
 });
 
 test("in-process queue drains FIFO", async () => {

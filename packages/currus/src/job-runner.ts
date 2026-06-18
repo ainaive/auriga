@@ -6,6 +6,7 @@ import {
   type Message,
   type ModelProvider,
   type SkillRegistry,
+  type TraceEvent,
   type Usage,
   type VerificationKey,
 } from "@auriga/core";
@@ -20,6 +21,11 @@ import { VerificationGate, type NamedCheck, type VerificationResult } from "./ve
 
 /** Harness-internal tools that are always available regardless of the job allowlist. */
 const HARNESS_TOOLS = ["update_todo", "read_todo", "note", "select_skill"];
+
+/** HITL gate: whether this job has human approval to execute. */
+export interface ApprovalGate {
+  isApproved(): Promise<boolean>;
+}
 
 export type JobEvent =
   | { type: "attempt"; attempt: number; steps: number; usage: Usage }
@@ -60,6 +66,10 @@ export interface RunJobOptions {
   stepsPerAttempt?: number;
   /** Observability hook (cost/progress). */
   onEvent?: (event: JobEvent) => void;
+  /** Trace hook: full event stream (model responses, tool calls, skills, verify). */
+  onTrace?: (event: TraceEvent) => void;
+  /** HITL gate consulted before execution when spec.require_approval is set. */
+  approvalGate?: ApprovalGate;
   /** Resume from a prior checkpoint instead of starting fresh. */
   resume?: JobResumeState;
   /** Called after each verify so the worker can snapshot + persist a checkpoint. */
@@ -67,7 +77,7 @@ export interface RunJobOptions {
 }
 
 export interface RunJobResult {
-  state: "done" | "failed";
+  state: "done" | "failed" | "paused";
   reason: string;
   attempts: number;
   steps: number;
@@ -92,6 +102,7 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
 
   // --- skills: resolve metadata, mount required, expose select_skill ---
   const tools: Tool[] = [...makeSandboxTools(sandbox), ...makeMemoryTools(memory)];
+  const recordedSkills = new Set<string>();
   let resolver: SkillResolver | undefined;
   let catalog = "";
   const requiredBodies: string[] = [];
@@ -113,6 +124,7 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
       );
     }
     tools.push(makeSelectSkillTool(resolver, sandbox));
+    flushSkillTrace();
   }
 
   const allowed = [...new Set([...spec.allowed_tools, ...HARNESS_TOOLS])];
@@ -137,6 +149,13 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
   const startAttempt = opts.resume?.startAttempt ?? 1;
   let verification: VerificationResult | null = null;
 
+  // HITL gate: pause before doing any work until a human approves. A missing gate
+  // for a require_approval job fails closed (pauses), never bypasses.
+  if (spec.require_approval) {
+    const approved = opts.approvalGate ? await opts.approvalGate.isApproved() : false;
+    if (!approved) return finish("paused", "awaiting human approval", 0);
+  }
+
   for (let attempt = startAttempt; attempt <= maxAttempts; attempt++) {
     const remainingSteps = spec.budget.max_steps - totalSteps;
     if (remainingSteps <= 0) {
@@ -158,12 +177,14 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
       onCompact: async (dropped) => {
         await memory.appendScratchpad(`# context compacted: ${dropped.length} messages offloaded`);
       },
+      ...(opts.onTrace ? { onTrace: opts.onTrace } : {}),
     });
 
     usage.input_tokens += loopRes.usage.input_tokens;
     usage.output_tokens += loopRes.usage.output_tokens;
     totalSteps += loopRes.steps;
     messages.splice(0, messages.length, ...loopRes.messages);
+    flushSkillTrace(); // capture any model-invoked skill loads
     opts.onEvent?.({ type: "attempt", attempt, steps: loopRes.steps, usage: { ...usage } });
 
     verification = await gate.verify(sandbox, spec.acceptance_criteria);
@@ -172,6 +193,16 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
       .map((r) => r.evidence)
       .join("\n\n");
     opts.onEvent?.({ type: "verify", attempt, passed: verification.passed, evidence });
+    opts.onTrace?.({
+      type: "verify",
+      attempt,
+      passed: verification.passed,
+      criteria: verification.results.map((r) => ({
+        kind: r.criterion.kind,
+        passed: r.passed,
+        evidence: r.evidence,
+      })),
+    });
 
     if (verification.passed) {
       await opts.onAttempt?.(attemptInfo(attempt, true));
@@ -185,6 +216,17 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
 
   return finish("failed", "verification did not pass within budget", maxAttempts);
 
+  function flushSkillTrace(): void {
+    if (!resolver || !opts.onTrace) return;
+    for (const skill of resolver.loadedSkills()) {
+      // Key on exact identity so distinct versions/hashes are each recorded.
+      const key = `${skill.name}@${skill.version}+${skill.content_hash}`;
+      if (recordedSkills.has(key)) continue;
+      recordedSkills.add(key);
+      opts.onTrace({ type: "skill_loaded", skill });
+    }
+  }
+
   function attemptInfo(attempt: number, passed: boolean): AttemptInfo {
     return {
       attempt,
@@ -196,7 +238,11 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
     };
   }
 
-  function finish(state: "done" | "failed", reason: string, attempt = maxAttempts): RunJobResult {
+  function finish(
+    state: "done" | "failed" | "paused",
+    reason: string,
+    attempt = maxAttempts,
+  ): RunJobResult {
     return {
       state,
       reason,

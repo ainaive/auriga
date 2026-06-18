@@ -62,6 +62,7 @@ Under active construction — see `~/.claude/plans/auriga-implementation-starry-
 
 - **Phase 0 — contracts + foundation:** ✅ done (job schema, provider seam, skill contract + verify, interim registry, hello-world loop).
 - **Phase 1 — minimum viable harness:** ✅ done. One job type ("fix a failing test → green") runs end to end: submit a spec → Plan-Execute-Verify loop in an isolated sandbox with allowlisted tools → a skill loaded via the full seam (progressive disclosure → fetch → signature-verify → mount) → verification gate runs the acceptance command → `done` only on pass; checkpoint/resume on a fresh worker; token + cost recorded.
+- **Phase 2 — evals + observability:** ✅ done. Every run records a structured **trace** (model calls, tool calls, skill versions, compaction, verify) persisted to the store; **OpenTelemetry** spans per step (register an exporter to ship to Jaeger/Tempo); a **replay** provider re-runs a trace deterministically and an **eval runner** scores a batch of traces against acceptance criteria; cost is rolled up per run; a **HITL approval gate** pauses jobs that declare `require_approval` until approved.
 
 ### Try it
 
@@ -90,6 +91,9 @@ Run a job (needs `ANTHROPIC_API_KEY`). Write a job spec, e.g. `job.json`:
 # during development (run the source directly):
 bun packages/cli/src/main.ts submit job.json
 bun packages/cli/src/main.ts status job_fix_add
+bun packages/cli/src/main.ts trace job_fix_add     # recorded trace + cost
+bun packages/cli/src/main.ts approve job_fix_add   # grant HITL approval, then `run`
+bun packages/cli/src/main.ts eval ./eval-suite     # replay + score recorded traces
 
 # or, once installed (the package exposes an `auriga` bin):
 auriga submit job.json

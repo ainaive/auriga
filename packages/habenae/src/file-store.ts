@@ -1,6 +1,6 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { JobSpec } from "@auriga/core";
+import type { JobSpec, Trace } from "@auriga/core";
 import type { JobPatch, JobRecord, JobStore, WorkerCheckpoint } from "./types";
 
 /**
@@ -26,6 +26,11 @@ export class FileJobStore implements JobStore {
     return join(this.dir, `${id}.checkpoint.json`);
   }
 
+  private tracePath(id: string): string {
+    this.assertSafeId(id);
+    return join(this.dir, `${id}.trace.json`);
+  }
+
   async create(spec: JobSpec): Promise<JobRecord> {
     await mkdir(this.dir, { recursive: true });
     const now = new Date().toISOString();
@@ -35,6 +40,7 @@ export class FileJobStore implements JobStore {
       state: "pending",
       reason: null,
       model: null,
+      approved: false,
       usage: { input_tokens: 0, output_tokens: 0 },
       attempts: 0,
       steps: 0,
@@ -72,7 +78,9 @@ export class FileJobStore implements JobStore {
       throw err;
     }
     const ids = files
-      .filter((f) => f.endsWith(".json") && !f.endsWith(".checkpoint.json"))
+      .filter(
+        (f) => f.endsWith(".json") && !f.endsWith(".checkpoint.json") && !f.endsWith(".trace.json"),
+      )
       .map((f) => f.slice(0, -".json".length));
     const records = await Promise.all(ids.map((id) => this.get(id)));
     return records.filter((r): r is JobRecord => r !== undefined);
@@ -96,6 +104,20 @@ export class FileJobStore implements JobStore {
   async loadCheckpoint(jobId: string): Promise<WorkerCheckpoint | undefined> {
     try {
       return JSON.parse(await readFile(this.checkpointPath(jobId), "utf8")) as WorkerCheckpoint;
+    } catch {
+      return undefined;
+    }
+  }
+
+  async saveTrace(trace: Trace): Promise<void> {
+    if (!(await this.get(trace.job_id))) throw new Error(`job not found: ${trace.job_id}`);
+    await mkdir(this.dir, { recursive: true });
+    await writeFile(this.tracePath(trace.job_id), JSON.stringify(trace));
+  }
+
+  async loadTrace(jobId: string): Promise<Trace | undefined> {
+    try {
+      return JSON.parse(await readFile(this.tracePath(jobId), "utf8")) as Trace;
     } catch {
       return undefined;
     }

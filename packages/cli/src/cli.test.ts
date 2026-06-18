@@ -42,12 +42,36 @@ test("status of a missing job exits non-zero", async () => {
   }
 });
 
-test("no command prints usage and exits 0", async () => {
+test("no command prints usage (incl. new commands) and exits 0", async () => {
   const home = await mkdtemp(join(tmpdir(), "auriga-cli-"));
   try {
     const r = await runCli([], home);
     expect(r.code).toBe(0);
     expect(r.stdout).toContain("harness job platform");
+    expect(r.stdout).toContain("approve");
+    expect(r.stdout).toContain("trace");
+    expect(r.stdout).toContain("eval");
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("trace and approve on a missing job exit non-zero", async () => {
+  const home = await mkdtemp(join(tmpdir(), "auriga-cli-"));
+  try {
+    expect((await runCli(["trace", "nope"], home)).code).toBe(1);
+    expect((await runCli(["approve", "nope"], home)).code).toBe(1);
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("eval without a dir exits non-zero", async () => {
+  const home = await mkdtemp(join(tmpdir(), "auriga-cli-"));
+  try {
+    const r = await runCli(["eval"], home);
+    expect(r.code).toBe(1);
+    expect(r.stderr).toContain("usage: auriga eval");
   } finally {
     await rm(home, { recursive: true, force: true });
   }

@@ -6,6 +6,7 @@ import {
   type Message,
   type ModelProvider,
   type ToolResultBlock,
+  type TraceEvent,
   type Usage,
 } from "@auriga/core";
 import { compactMessages, type CompactionOptions } from "./context";
@@ -31,6 +32,8 @@ export interface RunLoopOptions {
   compaction?: CompactionOptions;
   /** Called with messages dropped during compaction (e.g. to offload to disk). */
   onCompact?: (dropped: Message[]) => void | Promise<void>;
+  /** Trace hook: model responses, tool calls, and compaction events. */
+  onTrace?: (event: TraceEvent) => void;
 }
 
 export interface LoopResult {
@@ -62,6 +65,7 @@ export async function runLoop(opts: RunLoopOptions): Promise<LoopResult> {
       const c = compactMessages(messages, opts.compaction);
       if (c.compacted) {
         messages.splice(0, messages.length, ...c.messages);
+        opts.onTrace?.({ type: "compaction", dropped: c.dropped.length, before: c.before, after: c.after });
         if (opts.onCompact) await opts.onCompact(c.dropped);
       }
     }
@@ -75,6 +79,7 @@ export async function runLoop(opts: RunLoopOptions): Promise<LoopResult> {
     });
     usage.input_tokens += res.usage.input_tokens;
     usage.output_tokens += res.usage.output_tokens;
+    opts.onTrace?.({ type: "model_response", step, response: res });
     messages.push({ role: "assistant", content: res.content });
 
     const calls = toolUses(res.content);
@@ -85,6 +90,14 @@ export async function runLoop(opts: RunLoopOptions): Promise<LoopResult> {
     const results: ToolResultBlock[] = [];
     for (const call of calls) {
       const r = await dispatcher.dispatch(call.name, call.input);
+      opts.onTrace?.({
+        type: "tool_call",
+        step,
+        tool: call.name,
+        input: call.input,
+        output: r.content,
+        isError: r.isError,
+      });
       results.push(toolResultBlock(call.id, r.content, r.isError));
     }
     messages.push(toolResultMessage(results));

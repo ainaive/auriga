@@ -9,6 +9,7 @@
   "dependencies": {
     "@auriga/core": "workspace:*",
     "@auriga/capella": "workspace:*",
+    "@auriga/evals": "workspace:*",
     "@auriga/habenae": "workspace:*",
     "@auriga/provider": "workspace:*",
     "@auriga/sandbox": "workspace:*"

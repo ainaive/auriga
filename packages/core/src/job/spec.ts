@@ -58,6 +58,8 @@ export const JobSpecSchema = z.object({
   required_skills: z.array(z.string()).optional(),
   acceptance_criteria: z.array(AcceptanceCriterionSchema).min(1),
   budget: BudgetSchema,
+  /** Require human approval before the job may execute (HITL gate). */
+  require_approval: z.boolean().optional(),
 });
 
 export type WorkspaceRef = z.infer<typeof WorkspaceRefSchema>;
