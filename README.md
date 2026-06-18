@@ -59,4 +59,21 @@ docker compose up -d # start Postgres + MinIO (requires Docker)
 ## Status
 
 Under active construction — see `~/.claude/plans/auriga-implementation-starry-nest.md` for the phased plan.
-Phase 0 (contracts + foundation) is in progress.
+
+- **Phase 0 — contracts + foundation:** ✅ done (job schema, provider seam, skill contract + verify, interim registry, hello-world loop).
+- **Phase 1 — minimum viable harness:** ✅ done. One job type ("fix a failing test → green") runs end to end: submit a spec → Plan-Execute-Verify loop in an isolated sandbox with allowlisted tools → a skill loaded via the full seam (progressive disclosure → fetch → signature-verify → mount) → verification gate runs the acceptance command → `done` only on pass; checkpoint/resume on a fresh worker; token + cost recorded.
+
+### Try it
+
+```bash
+bun install
+bun run check                      # typecheck + tests (110+ tests, no Docker needed)
+cd packages/currus && bun run hello   # hello-world loop (stub; set ANTHROPIC_API_KEY for live)
+```
+
+Run a job (needs `ANTHROPIC_API_KEY`):
+
+```bash
+bun packages/cli/src/main.ts submit path/to/job.json
+bun packages/cli/src/main.ts status <job-id>
+```
