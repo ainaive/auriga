@@ -14,6 +14,7 @@ export type {
 } from "./types";
 export { InMemoryJobStore, InProcessQueue } from "./memory-store";
 export { FileJobStore } from "./file-store";
+export { isActive, dependencyStatus, type DependencyStatus } from "./dag";
 export { PostgresJobStore, migrate, SCHEMA_SQL } from "./postgres-store";
 export { GraphileQueue, RUN_JOB_TASK } from "./graphile-queue";
 export { Worker, type WorkerOptions } from "./worker";

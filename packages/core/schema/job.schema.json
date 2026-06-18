@@ -183,6 +183,12 @@
     },
     "require_approval": {
       "type": "boolean"
+    },
+    "depends_on": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     }
   },
   "required": [

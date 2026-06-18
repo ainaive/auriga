@@ -11,6 +11,7 @@ create table if not exists jobs (
   reason        text,
   model         text,
   approved      boolean not null default false,
+  retries       integer not null default 0,
   usage         jsonb not null default '{"input_tokens":0,"output_tokens":0}'::jsonb,
   attempts      integer not null default 0,
   steps         integer not null default 0,
@@ -32,6 +33,7 @@ create table if not exists traces (
 -- Additive upgrades for databases created before these columns existed.
 alter table jobs add column if not exists model text;
 alter table jobs add column if not exists approved boolean not null default false;
+alter table jobs add column if not exists retries integer not null default 0;
 `;
 
 export async function migrate(pool: Pool): Promise<void> {
@@ -43,6 +45,7 @@ const UPDATABLE = new Set([
   "reason",
   "model",
   "approved",
+  "retries",
   "usage",
   "attempts",
   "steps",
@@ -71,6 +74,14 @@ export class PostgresJobStore implements JobStore {
 
   async list(): Promise<JobRecord[]> {
     const res = await this.pool.query(`select * from jobs order by created_at desc`);
+    return res.rows.map(rowToRecord);
+  }
+
+  async listByFactio(factio: string): Promise<JobRecord[]> {
+    const res = await this.pool.query(
+      `select * from jobs where spec->>'factio' = $1 order by created_at desc`,
+      [factio],
+    );
     return res.rows.map(rowToRecord);
   }
 
@@ -125,6 +136,7 @@ interface JobRow {
   reason: string | null;
   model: string | null;
   approved: boolean;
+  retries: number;
   usage: JobRecord["usage"];
   attempts: number;
   steps: number;
@@ -141,6 +153,7 @@ function rowToRecord(row: JobRow): JobRecord {
     reason: row.reason,
     model: row.model,
     approved: row.approved,
+    retries: row.retries,
     usage: row.usage,
     attempts: row.attempts,
     steps: row.steps,
