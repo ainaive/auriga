@@ -10,3 +10,4 @@ export * from "./errors";
 export * from "./job";
 export * from "./provider";
 export * from "./skill";
+export * from "./trace";

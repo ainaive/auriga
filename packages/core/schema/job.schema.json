@@ -180,6 +180,9 @@
         "max_steps"
       ],
       "additionalProperties": false
+    },
+    "require_approval": {
+      "type": "boolean"
     }
   },
   "required": [
