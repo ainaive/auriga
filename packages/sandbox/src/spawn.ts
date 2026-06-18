@@ -13,8 +13,11 @@ export interface SpawnOptions {
   maxBytes?: number;
 }
 
-/** Read a stream up to `maxBytes`, marking truncation; always drains the stream. */
-async function readCapped(stream: ReadableStream<Uint8Array>, maxBytes: number): Promise<string> {
+/** Read a stream up to `maxBytes`, reporting truncation; always drains the stream. */
+async function readCapped(
+  stream: ReadableStream<Uint8Array>,
+  maxBytes: number,
+): Promise<{ text: string; truncated: boolean }> {
   const reader = stream.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
@@ -39,7 +42,7 @@ async function readCapped(stream: ReadableStream<Uint8Array>, maxBytes: number):
   }
   let text = Buffer.concat(chunks).toString("utf8");
   if (truncated) text += `\n…[output truncated at ${maxBytes} bytes]`;
-  return text;
+  return { text, truncated };
 }
 
 /** Spawn a process, capture stdout/stderr/exit, with an optional timeout. */
@@ -72,5 +75,11 @@ export async function spawnCapture(
   if (timer) clearTimeout(timer);
   const [stdout, stderr] = await Promise.all([stdoutP, stderrP]);
 
-  return { exitCode, stdout, stderr, timedOut };
+  return {
+    exitCode,
+    stdout: stdout.text,
+    stderr: stderr.text,
+    timedOut,
+    truncated: stdout.truncated || stderr.truncated,
+  };
 }

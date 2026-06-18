@@ -20,6 +20,8 @@ export interface ExecResult {
   stdout: string;
   stderr: string;
   timedOut: boolean;
+  /** True if captured output hit the byte cap and was truncated. */
+  truncated: boolean;
 }
 
 /** A workspace snapshot: workspace-relative path -> base64 file bytes. */

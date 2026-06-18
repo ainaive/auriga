@@ -66,8 +66,10 @@ export class FileJobStore implements JobStore {
     let files: string[];
     try {
       files = await readdir(this.dir);
-    } catch {
-      return [];
+    } catch (err) {
+      // A missing store dir just means no jobs yet; surface anything else.
+      if ((err as { code?: string }).code === "ENOENT") return [];
+      throw err;
     }
     const ids = files
       .filter((f) => f.endsWith(".json") && !f.endsWith(".checkpoint.json"))
