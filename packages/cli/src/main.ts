@@ -2,10 +2,11 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parseJobSpec } from "@auriga/core";
-import { formatUsage } from "@auriga/capella";
+import { formatTrace, formatUsage } from "@auriga/capella";
+import { loadEvalCases, runEvals } from "@auriga/evals";
 import { FileJobStore, Worker, type JobRecord } from "@auriga/habenae";
 import { AnthropicProvider, MODELS } from "@auriga/provider";
-import { selectDriver } from "@auriga/sandbox";
+import { selectDriver, type SandboxDriver } from "@auriga/sandbox";
 
 const STORE_DIR = process.env.AURIGA_HOME ?? join(process.cwd(), ".auriga", "jobs");
 const MODEL = process.env.AURIGA_MODEL ?? MODELS.sonnet;
@@ -17,19 +18,65 @@ async function main(): Promise<void> {
     case "submit":
       await submit(store, rest);
       break;
+    case "run":
+      await run(store, rest);
+      break;
+    case "approve":
+      await approve(store, rest);
+      break;
     case "status":
       await status(store, rest);
       break;
     case "result":
       await result(store, rest);
       break;
+    case "trace":
+      await trace(store, rest);
+      break;
     case "list":
       await list(store);
+      break;
+    case "eval":
+      await evalCmd(rest);
       break;
     default:
       printUsage();
       if (cmd) process.exitCode = 1;
   }
+}
+
+function selectCliDriver(): Promise<SandboxDriver> {
+  // The local CLI permits the non-isolated fallback; AURIGA_REQUIRE_DOCKER=1 enforces isolation.
+  return selectDriver({ allowLocalFallback: process.env.AURIGA_REQUIRE_DOCKER !== "1" });
+}
+
+/** Run a job that already exists in the store, printing progress + result. */
+async function runWorker(store: FileJobStore, id: string, model: string): Promise<void> {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.error("ANTHROPIC_API_KEY is required to run a job.");
+    process.exitCode = 1;
+    return;
+  }
+  const driver = await selectCliDriver();
+  console.log(`running ${id} · model ${model} · sandbox ${driver.name}`);
+  const worker = new Worker({
+    store,
+    provider: new AnthropicProvider(),
+    model,
+    sandboxDriver: driver,
+    onEvent: (e) => {
+      if (e.type === "verify") {
+        console.log(`  attempt ${e.attempt}: verification ${e.passed ? "PASS" : "fail"}`);
+      }
+    },
+  });
+  const res = await worker.run(id);
+  console.log(`\n${id}: ${res.state} — ${res.reason}`);
+  console.log(`attempts=${res.attempts} steps=${res.steps} · ${formatUsage(model, res.usage)}`);
+  if (res.state === "paused") {
+    console.log(`paused for approval — run: auriga approve ${id} && auriga run ${id}`);
+  }
+  if (res.state === "failed") process.exitCode = 2;
 }
 
 async function submit(store: FileJobStore, args: string[]): Promise<void> {
@@ -39,12 +86,6 @@ async function submit(store: FileJobStore, args: string[]): Promise<void> {
     process.exitCode = 1;
     return;
   }
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.error("ANTHROPIC_API_KEY is required to run a job.");
-    process.exitCode = 1;
-    return;
-  }
-
   let spec: ReturnType<typeof parseJobSpec>;
   try {
     spec = parseJobSpec(JSON.parse(await readFile(specPath, "utf8")));
@@ -55,29 +96,21 @@ async function submit(store: FileJobStore, args: string[]): Promise<void> {
     return;
   }
   await store.create(spec);
-  // The local CLI explicitly permits the non-isolated fallback (set
-  // AURIGA_REQUIRE_DOCKER=1 to require real isolation).
-  const driver = await selectDriver({
-    allowLocalFallback: process.env.AURIGA_REQUIRE_DOCKER !== "1",
-  });
-  console.log(`submitted ${spec.id} · model ${MODEL} · sandbox ${driver.name}`);
+  console.log(`submitted ${spec.id}`);
+  await runWorker(store, spec.id, MODEL);
+}
 
-  const worker = new Worker({
-    store,
-    provider: new AnthropicProvider(),
-    model: MODEL,
-    sandboxDriver: driver,
-    onEvent: (e) => {
-      if (e.type === "verify") {
-        console.log(`  attempt ${e.attempt}: verification ${e.passed ? "PASS" : "fail"}`);
-      }
-    },
-  });
+async function run(store: FileJobStore, args: string[]): Promise<void> {
+  const rec = await requireJob(store, args[0]);
+  if (!rec) return;
+  await runWorker(store, rec.id, rec.model ?? MODEL);
+}
 
-  const res = await worker.run(spec.id);
-  console.log(`\n${spec.id}: ${res.state} — ${res.reason}`);
-  console.log(`attempts=${res.attempts} steps=${res.steps} · ${formatUsage(MODEL, res.usage)}`);
-  if (res.state !== "done") process.exitCode = 2;
+async function approve(store: FileJobStore, args: string[]): Promise<void> {
+  const rec = await requireJob(store, args[0]);
+  if (!rec) return;
+  await store.update(rec.id, { approved: true });
+  console.log(`approved ${rec.id} — run: auriga run ${rec.id}`);
 }
 
 async function status(store: FileJobStore, args: string[]): Promise<void> {
@@ -101,6 +134,17 @@ async function result(store: FileJobStore, args: string[]): Promise<void> {
   }
 }
 
+async function trace(store: FileJobStore, args: string[]): Promise<void> {
+  const rec = await requireJob(store, args[0]);
+  if (!rec) return;
+  const t = await store.loadTrace(rec.id);
+  if (!t) {
+    console.log(`no trace recorded for ${rec.id}`);
+    return;
+  }
+  console.log(formatTrace(t));
+}
+
 async function list(store: FileJobStore): Promise<void> {
   const jobs = await store.list();
   if (!jobs.length) {
@@ -112,9 +156,34 @@ async function list(store: FileJobStore): Promise<void> {
   }
 }
 
+async function evalCmd(args: string[]): Promise<void> {
+  const dir = args[0];
+  if (!dir) {
+    console.error("usage: auriga eval <suite-dir>");
+    process.exitCode = 1;
+    return;
+  }
+  const cases = await loadEvalCases(dir);
+  if (!cases.length) {
+    console.log(`no eval cases in ${dir}`);
+    return;
+  }
+  const driver = await selectCliDriver();
+  const { scores, summary } = await runEvals(cases, driver);
+  for (const s of scores) {
+    const mark = s.matches ? "✓" : "✗";
+    console.log(`${mark} ${s.job_id}  replay=${s.replay_state} recorded=${s.recorded_state}${s.error ? ` (${s.error})` : ""}`);
+  }
+  const cost = Number.isFinite(summary.total_cost_usd) ? `~$${summary.total_cost_usd.toFixed(4)}` : "n/a";
+  console.log(
+    `\n${summary.matched}/${summary.total} matched · ${summary.done} done · ${summary.verify_passed} verified · cost ${cost}`,
+  );
+  if (summary.matched < summary.total) process.exitCode = 2;
+}
+
 async function requireJob(store: FileJobStore, id: string | undefined): Promise<JobRecord | undefined> {
   if (!id) {
-    console.error("usage: auriga <status|result> <id>");
+    console.error("usage: auriga <run|approve|status|result|trace> <id>");
     process.exitCode = 1;
     return undefined;
   }
@@ -131,12 +200,17 @@ function printUsage(): void {
   console.log(`auriga — harness job platform
 
 usage:
-  auriga submit <spec.json>   submit and run a job to completion
+  auriga submit <spec.json>   create and run a job to completion
+  auriga run <id>             run/resume an existing job (e.g. after approval)
+  auriga approve <id>         grant human approval to a paused job (HITL)
   auriga status <id>          show a job's state + cost
   auriga result <id>          show a job's final result
+  auriga trace <id>           print the recorded trace + cost
   auriga list                 list all jobs
+  auriga eval <suite-dir>     replay a suite of recorded traces and score them
 
-env: ANTHROPIC_API_KEY (required for submit), AURIGA_MODEL, AURIGA_HOME`);
+env: ANTHROPIC_API_KEY (required for submit/run), AURIGA_MODEL, AURIGA_HOME,
+     AURIGA_REQUIRE_DOCKER=1 (require an isolated sandbox)`);
 }
 
 await main().catch((err) => {
