@@ -12,11 +12,9 @@
     "@auriga/core": "workspace:*",
     "@auriga/capella": "workspace:*",
     "@auriga/currus": "workspace:*",
+    "@auriga/provider": "workspace:*",
     "@auriga/sandbox": "workspace:*",
     "graphile-worker": "^0.17.2",
     "pg": "^8.21.0"
-  },
-  "devDependencies": {
-    "@auriga/provider": "workspace:*"
   }
 }

@@ -24,6 +24,8 @@ export interface RunLoopOptions {
   /** A pre-built dispatcher; takes precedence over `tools`/`allowedTools`. */
   dispatcher?: ToolDispatcher;
   system?: string;
+  /** Model for the first step (planning). Falls back to `model` when unset. */
+  planModel?: string;
   /** Hard cap on iterations (a budget backstop). */
   maxSteps?: number;
   /** max_tokens per model call. */
@@ -70,7 +72,8 @@ export async function runLoop(opts: RunLoopOptions): Promise<LoopResult> {
       }
     }
     const res = await opts.provider.complete({
-      model: opts.model,
+      // reasoning sandwich: plan model on step 1, act model afterwards
+      model: step === 1 && opts.planModel ? opts.planModel : opts.model,
       // snapshot: the provider must see the state at call time, not a live ref
       messages: [...messages],
       max_tokens: opts.maxTokens ?? 1024,
