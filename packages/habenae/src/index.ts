@@ -22,6 +22,14 @@ export {
   type SchedulerReport,
   type RetryPolicy,
 } from "./scheduler";
+export {
+  submitJob,
+  InMemoryPolicy,
+  type Policy,
+  type FactioPolicy,
+  type Actor,
+  type SubmitOptions,
+} from "./governance";
 export { PostgresJobStore, migrate, SCHEMA_SQL } from "./postgres-store";
 export { GraphileQueue, RUN_JOB_TASK } from "./graphile-queue";
 export { Worker, type WorkerOptions } from "./worker";
