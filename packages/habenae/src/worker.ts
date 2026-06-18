@@ -3,7 +3,14 @@ import { Recorder, estimateCostUsd } from "@auriga/capella";
 import { runJob, type JobEvent, type RunJobResult } from "@auriga/currus";
 import type { ModelRouter } from "@auriga/provider";
 import type { CreateSandboxOptions, SandboxDriver } from "@auriga/sandbox";
+import type { AuditLog } from "./audit";
 import type { JobStore, WorkerCheckpoint } from "./types";
+
+const STATE_ACTION: Record<string, string> = {
+  done: "job.completed",
+  failed: "job.failed",
+  paused: "job.paused",
+};
 
 export interface WorkerOptions {
   store: JobStore;
@@ -17,6 +24,8 @@ export interface WorkerOptions {
   trustedKeys?: VerificationKey[];
   /** Runtime → governance feedback sink for per-skill usage/success/cost. */
   usageSink?: SkillUsageSink;
+  /** Optional audit trail for job lifecycle events. */
+  audit?: AuditLog;
   role?: string;
   maxAttempts?: number;
   /** Progress hook (forwarded from the runner) for live CLI/console feedback. */
@@ -59,6 +68,12 @@ export class Worker {
           loaded_skills: [],
         }),
       );
+      await this.opts.audit?.record({
+        factio: record.spec.factio,
+        actor: "worker",
+        action: "job.paused",
+        job_id: jobId,
+      });
       return {
         state: "paused",
         reason,
@@ -142,6 +157,12 @@ export class Worker {
         attempts: result.attempts,
         steps: result.steps,
         loaded_skills: result.loadedSkills,
+      });
+      await this.opts.audit?.record({
+        factio: record.spec.factio,
+        actor: "worker",
+        action: STATE_ACTION[result.state] ?? "job.unknown",
+        job_id: jobId,
       });
 
       // Runtime → governance feedback: attribute the job's cost across the skills

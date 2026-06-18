@@ -30,6 +30,15 @@ export {
   type Actor,
   type SubmitOptions,
 } from "./governance";
+export {
+  InMemoryAuditLog,
+  FileAuditLog,
+  PostgresAuditLog,
+  AUDIT_SCHEMA_SQL,
+  type AuditLog,
+  type AuditEvent,
+  type NewAuditEvent,
+} from "./audit";
 export { PostgresJobStore, migrate, SCHEMA_SQL } from "./postgres-store";
 export { GraphileQueue, RUN_JOB_TASK } from "./graphile-queue";
 export { Worker, type WorkerOptions } from "./worker";
