@@ -120,3 +120,35 @@ test("schedule on an empty store reports no pending jobs", async () => {
     await rm(home, { recursive: true, force: true });
   }
 });
+
+test("audit and dashboard reflect a created job", async () => {
+  const home = await mkdtemp(join(tmpdir(), "auriga-cli-"));
+  const specDir = await mkdtemp(join(tmpdir(), "auriga-spec-"));
+  const specFile = join(specDir, "spec.json");
+  try {
+    await writeFile(specFile, JSON.stringify(SAMPLE_SPEC));
+    await runCli(["create", specFile], home);
+
+    const audit = await runCli(["audit"], home);
+    expect(audit.stdout).toContain("job.created");
+    expect(audit.stdout).toContain("[acme]");
+
+    const dash = await runCli(["dashboard"], home);
+    expect(dash.stdout).toContain("1 jobs");
+    expect(dash.stdout).toContain("[acme]");
+  } finally {
+    await rm(home, { recursive: true, force: true });
+    await rm(specDir, { recursive: true, force: true });
+  }
+});
+
+test("skills without AURIGA_SKILLS exits non-zero", async () => {
+  const home = await mkdtemp(join(tmpdir(), "auriga-cli-"));
+  try {
+    const r = await runCli(["skills"], home);
+    expect(r.code).toBe(1);
+    expect(r.stderr).toContain("AURIGA_SKILLS");
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});

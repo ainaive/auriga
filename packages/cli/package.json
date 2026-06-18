@@ -11,6 +11,7 @@
     "@auriga/capella": "workspace:*",
     "@auriga/evals": "workspace:*",
     "@auriga/habenae": "workspace:*",
+    "@auriga/skill-registry": "workspace:*",
     "@auriga/provider": "workspace:*",
     "@auriga/sandbox": "workspace:*"
   }

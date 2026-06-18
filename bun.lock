@@ -48,6 +48,7 @@
         "@auriga/habenae": "workspace:*",
         "@auriga/provider": "workspace:*",
         "@auriga/sandbox": "workspace:*",
+        "@auriga/skill-registry": "workspace:*",
       },
     },
     "packages/core": {
