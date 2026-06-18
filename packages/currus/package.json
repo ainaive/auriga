@@ -1,0 +1,18 @@
+{
+  "name": "@auriga/currus",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "hello": "bun scripts/hello.ts"
+  },
+  "dependencies": {
+    "@auriga/core": "workspace:*",
+    "@auriga/provider": "workspace:*"
+  }
+}

@@ -21,6 +21,14 @@
         "zod": "^4.0.0",
       },
     },
+    "packages/currus": {
+      "name": "@auriga/currus",
+      "version": "0.0.0",
+      "dependencies": {
+        "@auriga/core": "workspace:*",
+        "@auriga/provider": "workspace:*",
+      },
+    },
     "packages/provider": {
       "name": "@auriga/provider",
       "version": "0.0.0",
@@ -41,6 +49,8 @@
     "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.104.2", "", { "dependencies": { "json-schema-to-ts": "^3.1.1", "standardwebhooks": "^1.0.0" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-s1wEVDAtEwkS7Ajgep6PZKJLFqybRkmD3Byz+iVVsSpbDY0gjROXE9aOft6V3PMqynn3NTcycV5whga9tCzmKA=="],
 
     "@auriga/core": ["@auriga/core@workspace:packages/core"],
+
+    "@auriga/currus": ["@auriga/currus@workspace:packages/currus"],
 
     "@auriga/provider": ["@auriga/provider@workspace:packages/provider"],
 
