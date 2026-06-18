@@ -1,0 +1,20 @@
+{
+  "name": "@auriga/evals",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@auriga/core": "workspace:*",
+    "@auriga/capella": "workspace:*",
+    "@auriga/currus": "workspace:*",
+    "@auriga/sandbox": "workspace:*"
+  },
+  "devDependencies": {
+    "@auriga/provider": "workspace:*"
+  }
+}

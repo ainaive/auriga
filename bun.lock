@@ -58,6 +58,19 @@
         "@auriga/skill-registry": "workspace:*",
       },
     },
+    "packages/evals": {
+      "name": "@auriga/evals",
+      "version": "0.0.0",
+      "dependencies": {
+        "@auriga/capella": "workspace:*",
+        "@auriga/core": "workspace:*",
+        "@auriga/currus": "workspace:*",
+        "@auriga/sandbox": "workspace:*",
+      },
+      "devDependencies": {
+        "@auriga/provider": "workspace:*",
+      },
+    },
     "packages/habenae": {
       "name": "@auriga/habenae",
       "version": "0.0.0",
@@ -105,6 +118,8 @@
     "@auriga/core": ["@auriga/core@workspace:packages/core"],
 
     "@auriga/currus": ["@auriga/currus@workspace:packages/currus"],
+
+    "@auriga/evals": ["@auriga/evals@workspace:packages/evals"],
 
     "@auriga/habenae": ["@auriga/habenae@workspace:packages/habenae"],
 
