@@ -20,6 +20,7 @@ export {
   type SchedulerOptions,
   type SchedulerQuotas,
   type SchedulerReport,
+  type RetryPolicy,
 } from "./scheduler";
 export { PostgresJobStore, migrate, SCHEMA_SQL } from "./postgres-store";
 export { GraphileQueue, RUN_JOB_TASK } from "./graphile-queue";

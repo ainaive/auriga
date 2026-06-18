@@ -9,11 +9,20 @@ export interface SchedulerQuotas {
   perFactio: number;
 }
 
+export interface RetryPolicy {
+  /** Max control-plane retries for a failed job. */
+  maxRetries: number;
+  /** ms to wait before re-enqueue; receives the next attempt number (1-based). */
+  backoffMs?: (attempt: number) => number;
+}
+
 export interface SchedulerReport {
   ran: string[];
   done: string[];
   failed: string[];
   paused: string[];
+  /** Re-enqueue events (one entry per retry; may repeat a job id). */
+  retried: string[];
   /** Jobs marked failed because a dependency can never be satisfied. */
   blocked: string[];
 }
@@ -23,7 +32,11 @@ export interface SchedulerOptions {
   /** Execute a job to a terminal/paused state (e.g. a bound Worker.run). */
   run: (jobId: string) => Promise<unknown>;
   quotas: SchedulerQuotas;
+  /** Re-enqueue failed jobs up to a limit (default: no retries). */
+  retry?: RetryPolicy;
 }
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Drains pending jobs to completion while respecting:
@@ -36,7 +49,14 @@ export class Scheduler {
   constructor(private readonly opts: SchedulerOptions) {}
 
   async drain(): Promise<SchedulerReport> {
-    const report: SchedulerReport = { ran: [], done: [], failed: [], paused: [], blocked: [] };
+    const report: SchedulerReport = {
+      ran: [],
+      done: [],
+      failed: [],
+      paused: [],
+      retried: [],
+      blocked: [],
+    };
     const inflight = new Map<string, { factio: string; promise: Promise<string> }>();
     const factioCount = (f: string) =>
       [...inflight.values()].filter((v) => v.factio === f).length;
@@ -99,7 +119,28 @@ export class Scheduler {
       if (rec && !isTerminal(rec.state)) {
         await this.opts.store.update(jobId, { state: "failed", reason: "worker error" });
       }
+      if (await this.tryRetry(jobId, report)) return;
       report.failed.push(jobId);
     }
+  }
+
+  /** Re-enqueue a failed job if a retry budget remains. Returns true if re-enqueued. */
+  private async tryRetry(jobId: string, report: SchedulerReport): Promise<boolean> {
+    const policy = this.opts.retry;
+    if (!policy) return false;
+    const rec = await this.opts.store.get(jobId);
+    const used = rec?.retries ?? 0;
+    if (used >= policy.maxRetries) return false;
+
+    const attempt = used + 1;
+    const delay = policy.backoffMs?.(attempt) ?? 0;
+    if (delay > 0) await sleep(delay);
+    await this.opts.store.update(jobId, {
+      state: "pending",
+      retries: attempt,
+      reason: `retry ${attempt}/${policy.maxRetries}`,
+    });
+    report.retried.push(jobId);
+    return true;
   }
 }
