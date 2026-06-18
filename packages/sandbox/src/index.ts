@@ -10,6 +10,7 @@ export type {
   SandboxLimits,
   CreateSandboxOptions,
   WorkspaceSeed,
+  SandboxSnapshot,
 } from "./types";
 export { LocalSandboxDriver } from "./local";
 export { DockerSandboxDriver } from "./docker";

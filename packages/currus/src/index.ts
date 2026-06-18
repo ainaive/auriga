@@ -30,6 +30,8 @@ export {
   type RunJobOptions,
   type RunJobResult,
   type JobEvent,
+  type JobResumeState,
+  type AttemptInfo,
 } from "./job-runner";
 export type { Tool } from "./tool";
 export { echoTool } from "./tools/echo";

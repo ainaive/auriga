@@ -22,6 +22,9 @@ export interface ExecResult {
   timedOut: boolean;
 }
 
+/** A workspace snapshot: workspace-relative path -> base64 file bytes. */
+export type SandboxSnapshot = Record<string, string>;
+
 export interface Sandbox {
   readonly id: string;
   /** Run a shell command in the workspace, capturing output and exit code. */
@@ -32,6 +35,8 @@ export interface Sandbox {
   list(dir?: string): Promise<string[]>;
   /** Mount skill files (path -> bytes). Returns the mount root inside the sandbox. */
   mountSkill(name: string, files: Record<string, Uint8Array>): Promise<string>;
+  /** Snapshot all workspace files (excludes .git/node_modules) for durable resume. */
+  snapshot(): Promise<SandboxSnapshot>;
   /** Tear down the sandbox and free its resources. */
   destroy(): Promise<void>;
 }
@@ -45,7 +50,8 @@ export interface SandboxLimits {
 
 export type WorkspaceSeed =
   | { kind: "dir"; path: string }
-  | { kind: "empty" };
+  | { kind: "empty" }
+  | { kind: "snapshot"; snapshot: SandboxSnapshot };
 
 export interface CreateSandboxOptions {
   workspace?: WorkspaceSeed;

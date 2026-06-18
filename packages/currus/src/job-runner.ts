@@ -25,6 +25,24 @@ export type JobEvent =
   | { type: "attempt"; attempt: number; steps: number; usage: Usage }
   | { type: "verify"; attempt: number; passed: boolean; evidence: string };
 
+/** State needed to resume a job on a fresh worker (the workspace is restored separately). */
+export interface JobResumeState {
+  messages: Message[];
+  usage: Usage;
+  steps: number;
+  startAttempt: number;
+}
+
+/** Reported after each verify so the worker can checkpoint (snapshot + persist). */
+export interface AttemptInfo {
+  attempt: number;
+  passed: boolean;
+  messages: Message[];
+  usage: Usage;
+  steps: number;
+  loadedSkills: LoadedSkill[];
+}
+
 export interface RunJobOptions {
   spec: JobSpec;
   provider: ModelProvider;
@@ -42,6 +60,10 @@ export interface RunJobOptions {
   stepsPerAttempt?: number;
   /** Observability hook (cost/progress). */
   onEvent?: (event: JobEvent) => void;
+  /** Resume from a prior checkpoint instead of starting fresh. */
+  resume?: JobResumeState;
+  /** Called after each verify so the worker can snapshot + persist a checkpoint. */
+  onAttempt?: (info: AttemptInfo) => void | Promise<void>;
 }
 
 export interface RunJobResult {
@@ -97,7 +119,9 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
   const dispatcher = new ToolDispatcher(tools, allowed);
 
   const system = buildSystemPrompt(spec, catalog, requiredBodies);
-  const messages: Message[] = [userText(buildTaskMessage(spec))];
+  const messages: Message[] = opts.resume
+    ? [...opts.resume.messages]
+    : [userText(buildTaskMessage(spec))];
 
   const maxAttempts = opts.maxAttempts ?? 3;
   const stepsPerAttempt =
@@ -106,11 +130,14 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
     timeoutMs: spec.budget.max_wall_time_s * 1000,
   });
 
-  const usage: Usage = { input_tokens: 0, output_tokens: 0 };
-  let totalSteps = 0;
+  const usage: Usage = opts.resume
+    ? { ...opts.resume.usage }
+    : { input_tokens: 0, output_tokens: 0 };
+  let totalSteps = opts.resume?.steps ?? 0;
+  const startAttempt = opts.resume?.startAttempt ?? 1;
   let verification: VerificationResult | null = null;
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+  for (let attempt = startAttempt; attempt <= maxAttempts; attempt++) {
     const remainingSteps = spec.budget.max_steps - totalSteps;
     if (remainingSteps <= 0) {
       return finish("failed", "step budget exhausted");
@@ -147,15 +174,27 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
     opts.onEvent?.({ type: "verify", attempt, passed: verification.passed, evidence });
 
     if (verification.passed) {
+      await opts.onAttempt?.(attemptInfo(attempt, true));
       return finish("done", "acceptance criteria passed", attempt);
     }
 
-    messages.push(
-      userText(`Verification failed — fix the issues and continue:\n\n${evidence}`),
-    );
+    // prime the next attempt with the failure evidence, then checkpoint
+    messages.push(userText(`Verification failed — fix the issues and continue:\n\n${evidence}`));
+    await opts.onAttempt?.(attemptInfo(attempt, false));
   }
 
   return finish("failed", "verification did not pass within budget", maxAttempts);
+
+  function attemptInfo(attempt: number, passed: boolean): AttemptInfo {
+    return {
+      attempt,
+      passed,
+      messages,
+      usage: { ...usage },
+      steps: totalSteps,
+      loadedSkills: resolver?.loadedSkills() ?? [],
+    };
+  }
 
   function finish(state: "done" | "failed", reason: string, attempt = maxAttempts): RunJobResult {
     return {

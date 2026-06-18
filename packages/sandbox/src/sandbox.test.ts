@@ -50,6 +50,27 @@ function sandboxContract(makeDriver: () => SandboxDriver) {
       await sbx.destroy();
     }
   });
+
+  test("snapshot → restore into a new sandbox preserves files", async () => {
+    const driver = makeDriver();
+    const first = await driver.create({ workspace: { kind: "empty" } });
+    let snapshot;
+    try {
+      await first.writeFile("src/a.ts", "const a = 1;");
+      await first.writeFile("notes.md", "hello");
+      snapshot = await first.snapshot();
+      expect(Object.keys(snapshot)).toContain("src/a.ts");
+    } finally {
+      await first.destroy();
+    }
+    const second = await driver.create({ workspace: { kind: "snapshot", snapshot } });
+    try {
+      expect(await second.readFile("src/a.ts")).toBe("const a = 1;");
+      expect(await second.readFile("notes.md")).toBe("hello");
+    } finally {
+      await second.destroy();
+    }
+  });
 }
 
 describe("LocalSandbox", () => {

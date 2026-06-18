@@ -6,6 +6,7 @@ import type {
   ExecResult,
   Sandbox,
   SandboxDriver,
+  SandboxSnapshot,
 } from "./types";
 
 const DEFAULT_IMAGE = "oven/bun:1";
@@ -86,6 +87,24 @@ class DockerSandbox implements Sandbox {
     return base;
   }
 
+  async snapshot(): Promise<SandboxSnapshot> {
+    const list = await this.docker([
+      "exec",
+      this.containerId,
+      "sh",
+      "-c",
+      `cd ${WORKDIR} && find . -type f -not -path './.git/*' -not -path '*/node_modules/*'`,
+    ]);
+    const out: SandboxSnapshot = {};
+    for (const line of list.stdout.split("\n")) {
+      const rel = line.replace(/^\.\//, "").trim();
+      if (!rel) continue;
+      const r = await this.docker(["exec", this.containerId, "base64", `${WORKDIR}/${rel}`]);
+      out[rel] = r.stdout.replace(/\s+/g, "");
+    }
+    return out;
+  }
+
   async destroy(): Promise<void> {
     await this.docker(["rm", "-f", this.containerId]);
   }
@@ -126,15 +145,21 @@ export class DockerSandboxDriver implements SandboxDriver {
     const containerId = run.stdout.trim();
 
     await spawnCapture("docker", ["exec", containerId, "mkdir", "-p", WORKDIR]);
-    if (opts.workspace?.kind === "dir") {
-      const cp = await spawnCapture("docker", [
-        "cp",
-        `${opts.workspace.path}/.`,
-        `${containerId}:${WORKDIR}`,
-      ]);
+    const ws = opts.workspace;
+    if (ws?.kind === "dir") {
+      const cp = await spawnCapture("docker", ["cp", `${ws.path}/.`, `${containerId}:${WORKDIR}`]);
       if (cp.exitCode !== 0) {
         await spawnCapture("docker", ["rm", "-f", containerId]);
         throw new Error(`docker cp failed: ${cp.stderr.trim()}`);
+      }
+    } else if (ws?.kind === "snapshot") {
+      for (const [rel, b64] of Object.entries(ws.snapshot)) {
+        const full = `${WORKDIR}/${rel}`;
+        await spawnCapture(
+          "docker",
+          ["exec", "-i", containerId, "sh", "-c", `mkdir -p "$(dirname '${full}')" && base64 -d > '${full}'`],
+          { input: b64 },
+        );
       }
     }
 
