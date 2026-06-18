@@ -17,6 +17,14 @@ export {
   type SkillResolverOptions,
   type MountedSkill,
 } from "./skills";
+export {
+  estimateTokens,
+  messageTokens,
+  compactMessages,
+  type CompactionOptions,
+  type CompactionResult,
+} from "./context";
+export { WorkspaceMemory, makeMemoryTools } from "./memory";
 export type { Tool } from "./tool";
 export { echoTool } from "./tools/echo";
 export { makeSandboxTools } from "./tools/sandbox-tools";
