@@ -149,9 +149,11 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
   const startAttempt = opts.resume?.startAttempt ?? 1;
   let verification: VerificationResult | null = null;
 
-  // HITL gate: pause before doing any work until a human approves.
-  if (spec.require_approval && opts.approvalGate && !(await opts.approvalGate.isApproved())) {
-    return finish("paused", "awaiting human approval", 0);
+  // HITL gate: pause before doing any work until a human approves. A missing gate
+  // for a require_approval job fails closed (pauses), never bypasses.
+  if (spec.require_approval) {
+    const approved = opts.approvalGate ? await opts.approvalGate.isApproved() : false;
+    if (!approved) return finish("paused", "awaiting human approval", 0);
   }
 
   for (let attempt = startAttempt; attempt <= maxAttempts; attempt++) {
@@ -217,8 +219,10 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
   function flushSkillTrace(): void {
     if (!resolver || !opts.onTrace) return;
     for (const skill of resolver.loadedSkills()) {
-      if (recordedSkills.has(skill.name)) continue;
-      recordedSkills.add(skill.name);
+      // Key on exact identity so distinct versions/hashes are each recorded.
+      const key = `${skill.name}@${skill.version}+${skill.content_hash}`;
+      if (recordedSkills.has(key)) continue;
+      recordedSkills.add(key);
       opts.onTrace({ type: "skill_loaded", skill });
     }
   }

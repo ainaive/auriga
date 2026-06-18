@@ -38,7 +38,9 @@ export interface RunEvalOptions {
 
 function seedFor(spec: JobSpec): WorkspaceSeed {
   const ws = spec.context_refs.workspace;
-  return ws.kind === "dir" ? { kind: "dir", path: ws.url_or_path } : { kind: "empty" };
+  if (ws.kind === "dir") return { kind: "dir", path: ws.url_or_path };
+  // Replaying against the wrong initial state would produce false divergence.
+  throw new Error(`unsupported workspace kind for eval replay: ${ws.kind}`);
 }
 
 /** Replay one case through the harness against a fresh sandbox, and score it. */
@@ -82,7 +84,12 @@ export async function runEval(
       error: err instanceof Error ? err.message : String(err),
     };
   } finally {
-    await sandbox.destroy();
+    // A teardown failure must not abort the batch or drop a computed score.
+    try {
+      await sandbox.destroy();
+    } catch {
+      // ignore cleanup failures
+    }
   }
 }
 

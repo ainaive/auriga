@@ -109,7 +109,7 @@ test("replay flags divergence when the trace lacks enough responses", async () =
   expect(score.error).toContain("exhausted");
 });
 
-test("loadEvalCases is exported for disk-based suites", async () => {
-  const { loadEvalCases } = await import("./load");
+test("loadEvalCases is exported from the public barrel", async () => {
+  const { loadEvalCases } = await import("./index");
   expect(typeof loadEvalCases).toBe("function");
 });

@@ -114,6 +114,23 @@ test("terminates when the token budget is exhausted", async () => {
   }
 });
 
+test("require_approval with no approval gate fails closed (pauses)", async () => {
+  const sandbox = await emptySandbox();
+  try {
+    const result = await runJob({
+      spec: makeSpec({ allowed_tools: ["write_file"], require_approval: true }),
+      provider: new StubProvider([]), // pauses before any model call
+      model: "stub",
+      sandbox,
+      // no approvalGate provided on purpose
+    });
+    expect(result.state).toBe("paused");
+    expect(result.reason).toContain("approval");
+  } finally {
+    await sandbox.destroy();
+  }
+});
+
 test("mounts and records a required skill, then completes", async () => {
   const dir = await mkdtemp(join(tmpdir(), "auriga-jobskill-"));
   const sandbox = await emptySandbox();

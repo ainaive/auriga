@@ -7,7 +7,6 @@ create table if not exists jobs (
   state         text not null,
   reason        text,
   model         text,
-  approved      boolean not null default false,
   usage         jsonb not null default '{"input_tokens":0,"output_tokens":0}'::jsonb,
   attempts      integer not null default 0,
   steps         integer not null default 0,
@@ -17,12 +16,6 @@ create table if not exists jobs (
 );
 
 create table if not exists checkpoints (
-  job_id     text primary key references jobs(id) on delete cascade,
-  data       jsonb not null,
-  updated_at timestamptz not null default now()
-);
-
-create table if not exists traces (
   job_id     text primary key references jobs(id) on delete cascade,
   data       jsonb not null,
   updated_at timestamptz not null default now()

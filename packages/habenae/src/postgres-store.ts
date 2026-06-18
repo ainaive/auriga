@@ -28,6 +28,10 @@ create table if not exists traces (
   data       jsonb not null,
   updated_at timestamptz not null default now()
 );
+
+-- Additive upgrades for databases created before these columns existed.
+alter table jobs add column if not exists model text;
+alter table jobs add column if not exists approved boolean not null default false;
 `;
 
 export async function migrate(pool: Pool): Promise<void> {

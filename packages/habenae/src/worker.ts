@@ -33,6 +33,33 @@ export class Worker {
     const record = await store.get(jobId);
     if (!record) throw new Error(`job not found: ${jobId}`);
 
+    // HITL "pause first": short-circuit unapproved jobs BEFORE creating a sandbox,
+    // so no resources are spent (and workspace seeding can't fail) before approval.
+    if (record.spec.require_approval && !record.approved) {
+      const reason = "awaiting human approval";
+      await store.update(jobId, { state: "paused", reason, model: this.opts.model });
+      await store.saveTrace(
+        new Recorder(jobId, this.opts.model).finish({
+          state: "paused",
+          reason,
+          attempts: 0,
+          steps: 0,
+          usage: { input_tokens: 0, output_tokens: 0 },
+          loaded_skills: [],
+        }),
+      );
+      return {
+        state: "paused",
+        reason,
+        attempts: 0,
+        steps: 0,
+        usage: { input_tokens: 0, output_tokens: 0 },
+        verification: null,
+        loadedSkills: [],
+        messages: [],
+      };
+    }
+
     const checkpoint = await store.loadCheckpoint(jobId);
     const sandbox = await this.opts.sandboxDriver.create(seedFor(record, checkpoint));
     const recorder = new Recorder(jobId, this.opts.model);
