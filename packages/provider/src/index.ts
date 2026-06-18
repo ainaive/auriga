@@ -11,3 +11,10 @@ export {
   type ModelRouter,
   type RoutedModels,
 } from "./router";
+export {
+  singleProvider,
+  costAwareRouter,
+  type ProviderRouter,
+  type RoutedExecution,
+  type Backend,
+} from "./provider-router";

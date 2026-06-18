@@ -1,7 +1,7 @@
 import type { ModelProvider, SkillRegistry, SkillUsageSink, VerificationKey } from "@auriga/core";
 import { Recorder, estimateCostUsd } from "@auriga/capella";
 import { runJob, type JobEvent, type RunJobResult } from "@auriga/currus";
-import type { ModelRouter } from "@auriga/provider";
+import type { ModelRouter, ProviderRouter } from "@auriga/provider";
 import type { CreateSandboxOptions, SandboxDriver } from "@auriga/sandbox";
 import type { AuditLog } from "./audit";
 import type { JobStore, WorkerCheckpoint } from "./types";
@@ -20,6 +20,8 @@ export interface WorkerOptions {
   sandboxDriver: SandboxDriver;
   /** Per-job model routing (reasoning sandwich). Falls back to `model`. */
   router?: ModelRouter;
+  /** Per-job backend routing (provider + models). Takes precedence over `router`. */
+  providerRouter?: ProviderRouter;
   registry?: SkillRegistry;
   trustedKeys?: VerificationKey[];
   /** Runtime → governance feedback sink for per-skill usage/success/cost. */
@@ -48,10 +50,13 @@ export class Worker {
     const record = await store.get(jobId);
     if (!record) throw new Error(`job not found: ${jobId}`);
 
-    // Per-job model routing (reasoning sandwich): a planning model + an act model.
+    // Per-job routing: a backend provider (providerRouter) + plan/act models.
+    // providerRouter wins; else the model router; else the worker defaults.
+    const exec = this.opts.providerRouter?.route(record.spec);
     const routed = this.opts.router?.route(record.spec);
-    const model = routed?.act ?? this.opts.model;
-    const planModel = routed?.plan;
+    const provider = exec?.provider ?? this.opts.provider;
+    const model = exec?.actModel ?? routed?.act ?? this.opts.model;
+    const planModel = exec?.planModel ?? routed?.plan;
 
     // HITL "pause first": short-circuit unapproved jobs BEFORE creating a sandbox,
     // so no resources are spent (and workspace seeding can't fail) before approval.
@@ -94,7 +99,7 @@ export class Worker {
       await store.update(jobId, { state: checkpoint ? "running" : "planning", model });
       const result = await runJob({
         spec: record.spec,
-        provider: this.opts.provider,
+        provider,
         model,
         ...(planModel ? { planModel } : {}),
         sandbox,
