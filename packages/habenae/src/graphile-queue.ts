@@ -13,8 +13,13 @@ export class GraphileQueue implements Queue {
 
   static async connect(connectionString: string): Promise<GraphileQueue> {
     const utils = await makeWorkerUtils({ connectionString });
-    await utils.migrate();
-    return new GraphileQueue(utils);
+    try {
+      await utils.migrate();
+      return new GraphileQueue(utils);
+    } catch (err) {
+      await Promise.resolve(utils.release()).catch(() => {});
+      throw err;
+    }
   }
 
   async enqueue(jobId: string): Promise<void> {

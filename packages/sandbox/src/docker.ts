@@ -12,14 +12,22 @@ import type {
 const DEFAULT_IMAGE = "oven/bun:1";
 const WORKDIR = "/workspace";
 
+/** Single-quote a string for safe interpolation into a `sh -c` command. */
+function shq(s: string): string {
+  return `'${s.replace(/'/g, `'\\''`)}'`;
+}
+
+function assertOk(action: string, r: ExecResult): void {
+  if (r.exitCode !== 0) throw new Error(`${action} failed: ${r.stderr.trim() || `exit ${r.exitCode}`}`);
+}
+
 /**
  * A sandbox backed by an ephemeral Docker container. Real isolation: the job runs
  * inside the container with optional cpu/memory limits and (by default) no
  * network. The container is removed on destroy.
  *
- * NOTE: true egress allowlisting needs a proxy/firewall; for now an empty
- * allowlist means `--network none`, and a non-empty one falls back to the default
- * bridge (a follow-up will enforce the allowlist).
+ * NOTE: true egress allowlisting needs a proxy/firewall; until that exists we fail
+ * closed — a non-empty allowlist is rejected rather than silently opening the network.
  */
 class DockerSandbox implements Sandbox {
   constructor(
@@ -44,26 +52,31 @@ class DockerSandbox implements Sandbox {
   }
 
   async readFile(path: string): Promise<string> {
-    const r = await this.docker(["exec", this.containerId, "cat", `${WORKDIR}/${path}`]);
+    const full = `${WORKDIR}/${path}`;
+    const r = await this.docker(["exec", this.containerId, "sh", "-c", `cat ${shq(full)}`]);
     if (r.exitCode !== 0) throw new Error(`readFile failed: ${path}: ${r.stderr.trim()}`);
     return r.stdout;
   }
 
   async writeFile(path: string, content: string): Promise<void> {
     const full = `${WORKDIR}/${path}`;
-    await this.docker(
-      ["exec", "-i", this.containerId, "sh", "-c", `mkdir -p "$(dirname '${full}')" && cat > '${full}'`],
+    const r = await this.docker(
+      ["exec", "-i", this.containerId, "sh", "-c", `mkdir -p "$(dirname ${shq(full)})" && cat > ${shq(full)}`],
       content,
     );
+    assertOk(`writeFile ${path}`, r);
   }
 
   async exists(path: string): Promise<boolean> {
-    const r = await this.docker(["exec", this.containerId, "test", "-e", `${WORKDIR}/${path}`]);
+    const full = `${WORKDIR}/${path}`;
+    const r = await this.docker(["exec", this.containerId, "sh", "-c", `test -e ${shq(full)}`]);
     return r.exitCode === 0;
   }
 
   async list(dir = "."): Promise<string[]> {
-    const r = await this.docker(["exec", this.containerId, "ls", "-1", `${WORKDIR}/${dir}`]);
+    const full = `${WORKDIR}/${dir}`;
+    const r = await this.docker(["exec", this.containerId, "sh", "-c", `ls -1 ${shq(full)}`]);
+    assertOk(`list ${dir}`, r);
     return r.stdout.split("\n").filter((s) => s.length > 0);
   }
 
@@ -72,17 +85,11 @@ class DockerSandbox implements Sandbox {
     for (const [path, bytes] of Object.entries(files)) {
       const full = `${base}/${path}`;
       const b64 = Buffer.from(bytes).toString("base64");
-      await this.docker(
-        [
-          "exec",
-          "-i",
-          this.containerId,
-          "sh",
-          "-c",
-          `mkdir -p "$(dirname '${full}')" && base64 -d > '${full}'`,
-        ],
+      const r = await this.docker(
+        ["exec", "-i", this.containerId, "sh", "-c", `mkdir -p "$(dirname ${shq(full)})" && base64 -d > ${shq(full)}`],
         b64,
       );
+      assertOk(`mountSkill ${full}`, r);
     }
     return base;
   }
@@ -95,11 +102,13 @@ class DockerSandbox implements Sandbox {
       "-c",
       `cd ${WORKDIR} && find . -type f -not -path './.git/*' -not -path '*/node_modules/*'`,
     ]);
+    assertOk("snapshot:find", list);
     const out: SandboxSnapshot = {};
     for (const line of list.stdout.split("\n")) {
       const rel = line.replace(/^\.\//, "").trim();
       if (!rel) continue;
-      const r = await this.docker(["exec", this.containerId, "base64", `${WORKDIR}/${rel}`]);
+      const r = await this.docker(["exec", this.containerId, "sh", "-c", `base64 ${shq(`${WORKDIR}/${rel}`)}`]);
+      assertOk(`snapshot:read ${rel}`, r);
       out[rel] = r.stdout.replace(/\s+/g, "");
     }
     return out;
@@ -127,14 +136,19 @@ export class DockerSandboxDriver implements SandboxDriver {
     const limitArgs: string[] = [];
     if (opts.limits?.cpus) limitArgs.push("--cpus", String(opts.limits.cpus));
     if (opts.limits?.memoryMb) limitArgs.push("--memory", `${opts.limits.memoryMb}m`);
-    const network = opts.limits?.egressAllowlist?.length ? [] : ["--network", "none"];
+    // Fail closed: no network by default; a non-empty allowlist is not yet
+    // enforceable, so reject it rather than silently opening the network.
+    if (opts.limits?.egressAllowlist?.length) {
+      throw new Error("egress allowlist is not yet enforced; refusing to open the network");
+    }
 
     const run = await spawnCapture("docker", [
       "run",
       "-d",
       "--rm",
       ...limitArgs,
-      ...network,
+      "--network",
+      "none",
       "-w",
       WORKDIR,
       image,
@@ -144,23 +158,30 @@ export class DockerSandboxDriver implements SandboxDriver {
     if (run.exitCode !== 0) throw new Error(`docker run failed: ${run.stderr.trim()}`);
     const containerId = run.stdout.trim();
 
-    await spawnCapture("docker", ["exec", containerId, "mkdir", "-p", WORKDIR]);
-    const ws = opts.workspace;
-    if (ws?.kind === "dir") {
-      const cp = await spawnCapture("docker", ["cp", `${ws.path}/.`, `${containerId}:${WORKDIR}`]);
-      if (cp.exitCode !== 0) {
-        await spawnCapture("docker", ["rm", "-f", containerId]);
-        throw new Error(`docker cp failed: ${cp.stderr.trim()}`);
-      }
-    } else if (ws?.kind === "snapshot") {
-      for (const [rel, b64] of Object.entries(ws.snapshot)) {
-        const full = `${WORKDIR}/${rel}`;
-        await spawnCapture(
-          "docker",
-          ["exec", "-i", containerId, "sh", "-c", `mkdir -p "$(dirname '${full}')" && base64 -d > '${full}'`],
-          { input: b64 },
+    try {
+      assertOk("mkdir workdir", await spawnCapture("docker", ["exec", containerId, "mkdir", "-p", WORKDIR]));
+      const ws = opts.workspace;
+      if (ws?.kind === "dir") {
+        assertOk(
+          "docker cp",
+          await spawnCapture("docker", ["cp", `${ws.path}/.`, `${containerId}:${WORKDIR}`]),
         );
+      } else if (ws?.kind === "snapshot") {
+        for (const [rel, b64] of Object.entries(ws.snapshot)) {
+          const full = `${WORKDIR}/${rel}`;
+          assertOk(
+            `restore ${rel}`,
+            await spawnCapture(
+              "docker",
+              ["exec", "-i", containerId, "sh", "-c", `mkdir -p "$(dirname ${shq(full)})" && base64 -d > ${shq(full)}`],
+              { input: b64 },
+            ),
+          );
+        }
       }
+    } catch (err) {
+      await spawnCapture("docker", ["rm", "-f", containerId]);
+      throw err;
     }
 
     return new DockerSandbox(newId("sbx"), containerId);

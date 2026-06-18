@@ -14,6 +14,7 @@ export class InMemoryJobStore implements JobStore {
   private readonly checkpoints = new Map<string, WorkerCheckpoint>();
 
   async create(spec: JobSpec): Promise<JobRecord> {
+    if (this.jobs.has(spec.id)) throw new Error(`job already exists: ${spec.id}`);
     const now = nowIso();
     const record: JobRecord = {
       id: spec.id,
@@ -48,6 +49,9 @@ export class InMemoryJobStore implements JobStore {
   }
 
   async saveCheckpoint(checkpoint: WorkerCheckpoint): Promise<void> {
+    if (!this.jobs.has(checkpoint.job_id)) {
+      throw new Error(`job not found: ${checkpoint.job_id}`);
+    }
     this.checkpoints.set(checkpoint.job_id, structuredClone(checkpoint));
   }
 

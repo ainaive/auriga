@@ -94,6 +94,16 @@ describe("LocalSandbox", () => {
     await sbx.destroy();
     expect(await sbx.exists("a.txt")).toBe(false);
   });
+
+  test("rejects paths that escape the workspace root", async () => {
+    const sbx = await new LocalSandboxDriver().create({ workspace: { kind: "empty" } });
+    try {
+      await expect(sbx.readFile("../../etc/passwd")).rejects.toThrow(/escapes workspace/);
+      await expect(sbx.writeFile("../escape.txt", "x")).rejects.toThrow(/escapes workspace/);
+    } finally {
+      await sbx.destroy();
+    }
+  });
 });
 
 const dockerAvailable = await new DockerSandboxDriver().isAvailable();

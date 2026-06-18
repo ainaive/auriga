@@ -73,6 +73,22 @@ test("registered named_check runs", async () => {
   }
 });
 
+test("a throwing named_check becomes a failed criterion, not a crash", async () => {
+  const sbx = await sandbox();
+  try {
+    const gate = new VerificationGate({
+      lint: async () => {
+        throw new Error("lint crashed");
+      },
+    });
+    const r = await gate.verify(sbx, [{ kind: "named_check", name: "lint" }]);
+    expect(r.passed).toBe(false);
+    expect(r.results[0]?.evidence).toContain("lint crashed");
+  } finally {
+    await sbx.destroy();
+  }
+});
+
 test("empty criteria do not pass (nothing verified)", async () => {
   const sbx = await sandbox();
   try {

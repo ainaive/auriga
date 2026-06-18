@@ -1,9 +1,15 @@
 import { test, expect } from "bun:test";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { textResponse, toolUseResponse, type JobSpec } from "@auriga/core";
 import { StubProvider } from "@auriga/provider";
 import { LocalSandboxDriver } from "@auriga/sandbox";
 import { InMemoryJobStore } from "./memory-store";
 import { Worker } from "./worker";
+
+// An empty host directory used as the seed workspace ("dir" kind).
+const EMPTY_WS = await mkdtemp(join(tmpdir(), "auriga-ws-"));
 
 function spec(id: string): JobSpec {
   return {
@@ -11,7 +17,7 @@ function spec(id: string): JobSpec {
     factio: "default",
     created_by: "test",
     goal: "create answer.txt",
-    context_refs: { workspace: { kind: "git", url_or_path: "local-test" } },
+    context_refs: { workspace: { kind: "dir", url_or_path: EMPTY_WS } },
     allowed_tools: ["write_file"],
     acceptance_criteria: [{ kind: "file_exists", path: "answer.txt" }],
     budget: { max_tokens: 100_000, max_wall_time_s: 60, max_cost_usd: 1, max_steps: 20 },

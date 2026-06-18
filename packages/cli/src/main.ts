@@ -45,9 +45,21 @@ async function submit(store: FileJobStore, args: string[]): Promise<void> {
     return;
   }
 
-  const spec = parseJobSpec(JSON.parse(await readFile(specPath, "utf8")));
+  let spec: ReturnType<typeof parseJobSpec>;
+  try {
+    spec = parseJobSpec(JSON.parse(await readFile(specPath, "utf8")));
+  } catch (err) {
+    console.error(`failed to read/parse spec: ${specPath}`);
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exitCode = 1;
+    return;
+  }
   await store.create(spec);
-  const driver = await selectDriver();
+  // The local CLI explicitly permits the non-isolated fallback (set
+  // AURIGA_REQUIRE_DOCKER=1 to require real isolation).
+  const driver = await selectDriver({
+    allowLocalFallback: process.env.AURIGA_REQUIRE_DOCKER !== "1",
+  });
   console.log(`submitted ${spec.id} · model ${MODEL} · sandbox ${driver.name}`);
 
   const worker = new Worker({
@@ -127,4 +139,7 @@ usage:
 env: ANTHROPIC_API_KEY (required for submit), AURIGA_MODEL, AURIGA_HOME`);
 }
 
-await main();
+await main().catch((err) => {
+  console.error(err instanceof Error ? err.message : String(err));
+  process.exitCode = 1;
+});

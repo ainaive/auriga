@@ -1,6 +1,6 @@
 import { access, cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, relative, sep } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { newId } from "@auriga/core";
 import { spawnCapture } from "./spawn";
 import type {
@@ -45,27 +45,36 @@ class LocalSandbox implements Sandbox {
     private readonly root: string,
   ) {}
 
+  /** Resolve a workspace-relative path, refusing anything that escapes the root. */
+  private within(rel: string): string {
+    const abs = resolve(this.root, rel);
+    if (abs !== this.root && !abs.startsWith(`${this.root}${sep}`)) {
+      throw new Error(`path escapes workspace: ${rel}`);
+    }
+    return abs;
+  }
+
   async exec(cmd: string, opts: ExecOptions = {}): Promise<ExecResult> {
     return spawnCapture("sh", ["-c", cmd], {
-      cwd: opts.cwd ? join(this.root, opts.cwd) : this.root,
+      cwd: opts.cwd ? this.within(opts.cwd) : this.root,
       ...(opts.env ? { env: opts.env } : {}),
       ...(opts.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {}),
     });
   }
 
   async readFile(path: string): Promise<string> {
-    return readFile(join(this.root, path), "utf8");
+    return readFile(this.within(path), "utf8");
   }
 
   async writeFile(path: string, content: string): Promise<void> {
-    const abs = join(this.root, path);
+    const abs = this.within(path);
     await mkdir(dirname(abs), { recursive: true });
     await writeFile(abs, content);
   }
 
   async exists(path: string): Promise<boolean> {
     try {
-      await access(join(this.root, path));
+      await access(this.within(path));
       return true;
     } catch {
       return false;
@@ -73,13 +82,13 @@ class LocalSandbox implements Sandbox {
   }
 
   async list(dir = "."): Promise<string[]> {
-    return readdir(join(this.root, dir));
+    return readdir(this.within(dir));
   }
 
   async mountSkill(name: string, files: Record<string, Uint8Array>): Promise<string> {
     const rel = join(".skills", name);
     for (const [path, bytes] of Object.entries(files)) {
-      const abs = join(this.root, rel, path);
+      const abs = this.within(join(rel, path));
       await mkdir(dirname(abs), { recursive: true });
       await writeFile(abs, bytes);
     }

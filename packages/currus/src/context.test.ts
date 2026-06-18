@@ -51,3 +51,19 @@ test("compacts when over budget, keeping a valid transcript and recent context",
   // recent context preserved verbatim
   expect(JSON.stringify(r.messages.at(-1))).toContain("recent result here");
 });
+
+test("keepRecent=1 with a trailing tool_result still keeps the recent turn", () => {
+  const big = "x".repeat(4000);
+  const msgs = [
+    userText("task"),
+    assistantText(big),
+    toolResultMessage([toolResultBlock("t1", big)]),
+    assistantText("recent assistant"),
+    toolResultMessage([toolResultBlock("t2", "latest result")]),
+  ];
+  const r = compactMessages(msgs, { maxTokens: 300, keepRecent: 1 });
+  expect(r.compacted).toBe(true);
+  // backward scan keeps the assistant boundary + its tool_result (never drops all recent)
+  expect(r.messages[1]?.role).toBe("assistant");
+  expect(JSON.stringify(r.messages.at(-1))).toContain("latest result");
+});

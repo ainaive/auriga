@@ -38,11 +38,10 @@ export class WorkspaceMemory {
   }
 
   private async read(path: string): Promise<string> {
-    try {
-      return await this.sandbox.readFile(path);
-    } catch {
-      return "";
-    }
+    // Treat "absent" as empty, but surface real storage failures instead of
+    // masking them (a swallowed read error could silently wipe the scratchpad).
+    if (!(await this.sandbox.exists(path))) return "";
+    return this.sandbox.readFile(path);
   }
 }
 
@@ -58,7 +57,8 @@ export function makeMemoryTools(memory: WorkspaceMemory): Tool[] {
         required: ["content"],
       },
       async run(input) {
-        await memory.writeTodo(typeof input.content === "string" ? input.content : "");
+        if (typeof input.content !== "string") throw new Error("content must be a string");
+        await memory.writeTodo(input.content);
         return "todo updated";
       },
     },
@@ -79,7 +79,8 @@ export function makeMemoryTools(memory: WorkspaceMemory): Tool[] {
         required: ["text"],
       },
       async run(input) {
-        await memory.appendScratchpad(typeof input.text === "string" ? input.text : "");
+        if (typeof input.text !== "string") throw new Error("text must be a string");
+        await memory.appendScratchpad(input.text);
         return "noted";
       },
     },

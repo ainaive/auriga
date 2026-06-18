@@ -11,11 +11,18 @@ import type { JobPatch, JobRecord, JobStore, WorkerCheckpoint } from "./types";
 export class FileJobStore implements JobStore {
   constructor(private readonly dir: string) {}
 
+  /** Reject ids that could escape the store directory via path traversal. */
+  private assertSafeId(id: string): void {
+    if (!/^[A-Za-z0-9_-]+$/.test(id)) throw new Error(`invalid job id: ${id}`);
+  }
+
   private jobPath(id: string): string {
+    this.assertSafeId(id);
     return join(this.dir, `${id}.json`);
   }
 
   private checkpointPath(id: string): string {
+    this.assertSafeId(id);
     return join(this.dir, `${id}.checkpoint.json`);
   }
 
@@ -35,7 +42,15 @@ export class FileJobStore implements JobStore {
       created_at: now,
       updated_at: now,
     };
-    await writeFile(this.jobPath(spec.id), `${JSON.stringify(record, null, 2)}\n`);
+    try {
+      // `wx` fails if the file exists — matches Postgres's primary-key rejection.
+      await writeFile(this.jobPath(spec.id), `${JSON.stringify(record, null, 2)}\n`, { flag: "wx" });
+    } catch (err) {
+      if ((err as { code?: string }).code === "EEXIST") {
+        throw new Error(`job already exists: ${spec.id}`);
+      }
+      throw err;
+    }
     return record;
   }
 
@@ -69,6 +84,9 @@ export class FileJobStore implements JobStore {
   }
 
   async saveCheckpoint(checkpoint: WorkerCheckpoint): Promise<void> {
+    if (!(await this.get(checkpoint.job_id))) {
+      throw new Error(`job not found: ${checkpoint.job_id}`);
+    }
     await mkdir(this.dir, { recursive: true });
     await writeFile(this.checkpointPath(checkpoint.job_id), JSON.stringify(checkpoint));
   }

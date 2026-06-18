@@ -38,6 +38,28 @@ test("get returns a copy (no external mutation)", async () => {
   expect(b?.state).toBe("pending");
 });
 
+test("create rejects a duplicate job id", async () => {
+  const store = new InMemoryJobStore();
+  await store.create(spec("job_dup"));
+  await expect(store.create(spec("job_dup"))).rejects.toThrow(/already exists/);
+});
+
+test("saveCheckpoint rejects an orphan checkpoint", async () => {
+  const store = new InMemoryJobStore();
+  await expect(
+    store.saveCheckpoint({
+      job_id: "ghost",
+      lifecycle_state: "running",
+      messages: [],
+      usage: { input_tokens: 0, output_tokens: 0 },
+      steps: 0,
+      next_attempt: 1,
+      loaded_skills: [],
+      workspace: {},
+    }),
+  ).rejects.toThrow(/not found/);
+});
+
 test("checkpoint save / load round trip", async () => {
   const store = new InMemoryJobStore();
   await store.create(spec("job_1"));

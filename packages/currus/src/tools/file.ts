@@ -38,7 +38,9 @@ export function makeWriteFileTool(sandbox: Sandbox): Tool {
     },
     async run(input) {
       const path = requireString(input, "path");
-      const content = typeof input.content === "string" ? input.content : "";
+      // Reject non-string content rather than silently writing "" (which would wipe the file).
+      if (typeof input.content !== "string") throw new Error("content must be a string");
+      const content = input.content;
       await sandbox.writeFile(path, content);
       return `wrote ${path} (${content.length} bytes)`;
     },

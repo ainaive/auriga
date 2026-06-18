@@ -7,8 +7,8 @@ test("estimateCostUsd uses per-million pricing", () => {
   expect(cost).toBeCloseTo(18, 5);
 });
 
-test("unknown model costs zero (no pricing)", () => {
-  expect(estimateCostUsd("mystery", { input_tokens: 10, output_tokens: 10 })).toBe(0);
+test("unknown model has unknown (NaN) cost, not zero", () => {
+  expect(estimateCostUsd("mystery", { input_tokens: 10, output_tokens: 10 })).toBeNaN();
 });
 
 test("formatUsage shows tokens and cost, or n/a without a model", () => {

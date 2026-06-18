@@ -66,11 +66,22 @@ test("search finds a pattern and reports no matches otherwise", async () => {
   }
 });
 
-test("git runs in the workspace", async () => {
+test("git runs in the workspace with tokenized args", async () => {
   const { sandbox, dispatcher } = await setup();
   try {
-    const r = await dispatcher.dispatch("git", { args: "init" });
+    const r = await dispatcher.dispatch("git", { args: ["init"] });
     expect(r.content).toContain("exit: 0");
+  } finally {
+    await sandbox.destroy();
+  }
+});
+
+test("git rejects a non-array args payload (no shell injection)", async () => {
+  const { sandbox, dispatcher } = await setup();
+  try {
+    const r = await dispatcher.dispatch("git", { args: "status; echo pwned" });
+    expect(r.isError).toBe(true);
+    expect(r.content).toContain("string[]");
   } finally {
     await sandbox.destroy();
   }

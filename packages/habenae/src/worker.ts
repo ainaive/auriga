@@ -34,9 +34,9 @@ export class Worker {
 
     const checkpoint = await store.loadCheckpoint(jobId);
     const sandbox = await this.opts.sandboxDriver.create(seedFor(record, checkpoint));
-    await store.update(jobId, { state: checkpoint ? "running" : "planning", model: this.opts.model });
 
     try {
+      await store.update(jobId, { state: checkpoint ? "running" : "planning", model: this.opts.model });
       const result = await runJob({
         spec: record.spec,
         provider: this.opts.provider,
@@ -109,5 +109,7 @@ function seedFor(
   if (ws.kind === "dir") {
     return { workspace: { kind: "dir", path: ws.url_or_path } };
   }
-  return { workspace: { kind: "empty" } };
+  // "git" requires a clone step (not yet implemented); fail fast rather than
+  // silently running against an empty workspace.
+  throw new Error(`unsupported workspace kind for worker seeding: ${ws.kind}`);
 }

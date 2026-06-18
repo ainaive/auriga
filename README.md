@@ -71,9 +71,29 @@ bun run check                      # typecheck + tests (110+ tests, no Docker ne
 cd packages/currus && bun run hello   # hello-world loop (stub; set ANTHROPIC_API_KEY for live)
 ```
 
-Run a job (needs `ANTHROPIC_API_KEY`):
+Run a job (needs `ANTHROPIC_API_KEY`). Write a job spec, e.g. `job.json`:
+
+```json
+{
+  "id": "job_fix_add",
+  "factio": "default",
+  "created_by": "you@example.com",
+  "goal": "Fix the bug in src/add.ts so the test suite passes.",
+  "context_refs": { "workspace": { "kind": "dir", "url_or_path": "./fixtures/failing-test" } },
+  "allowed_tools": ["read_file", "write_file", "bash", "git", "search"],
+  "acceptance_criteria": [{ "kind": "command", "cmd": "bun test", "expect_exit": 0 }],
+  "budget": { "max_tokens": 200000, "max_wall_time_s": 600, "max_cost_usd": 5, "max_steps": 30 }
+}
+```
 
 ```bash
-bun packages/cli/src/main.ts submit path/to/job.json
-bun packages/cli/src/main.ts status <job-id>
+# during development (run the source directly):
+bun packages/cli/src/main.ts submit job.json
+bun packages/cli/src/main.ts status job_fix_add
+
+# or, once installed (the package exposes an `auriga` bin):
+auriga submit job.json
 ```
+
+Without Docker, the CLI falls back to the non-isolated Local sandbox (with a warning);
+set `AURIGA_REQUIRE_DOCKER=1` to require real isolation.

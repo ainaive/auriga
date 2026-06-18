@@ -76,7 +76,8 @@ export class PostgresJobStore implements JobStore {
     if (sets.length === 0) return;
     sets.push("updated_at = now()");
     values.push(id);
-    await this.pool.query(`update jobs set ${sets.join(", ")} where id = $${i}`, values);
+    const res = await this.pool.query(`update jobs set ${sets.join(", ")} where id = $${i}`, values);
+    if (res.rowCount === 0) throw new Error(`job not found: ${id}`);
   }
 
   async saveCheckpoint(checkpoint: WorkerCheckpoint): Promise<void> {

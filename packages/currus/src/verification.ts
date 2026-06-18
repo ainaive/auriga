@@ -61,12 +61,19 @@ export class VerificationGate {
         };
       }
       case "named_check": {
-        const check = this.namedChecks[criterion.name];
-        if (!check) {
+        const check = Object.prototype.hasOwnProperty.call(this.namedChecks, criterion.name)
+          ? this.namedChecks[criterion.name]
+          : undefined;
+        if (typeof check !== "function") {
           return { criterion, passed: false, evidence: `named check not registered: ${criterion.name}` };
         }
-        const { passed, evidence } = await check(sandbox);
-        return { criterion, passed, evidence };
+        try {
+          const { passed, evidence } = await check(sandbox);
+          return { criterion, passed, evidence };
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          return { criterion, passed: false, evidence: `named check failed: ${message}` };
+        }
       }
     }
   }

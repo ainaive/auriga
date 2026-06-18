@@ -54,11 +54,14 @@ export function compactMessages(messages: Message[], opts: CompactionOptions): C
     return { messages, compacted: false, dropped: [], before, after: before };
   }
 
+  // Scan BACKWARD to the nearest assistant boundary so we keep *at least*
+  // keepRecent messages (forward scanning could drop the entire recent tail when
+  // it ends with a user/tool_result turn).
   let start = Math.max(1, messages.length - opts.keepRecent);
-  while (start < messages.length && messages[start]?.role !== "assistant") start++;
+  while (start > 1 && messages[start]?.role !== "assistant") start--;
 
   const dropped = messages.slice(1, start);
-  if (dropped.length === 0) {
+  if (dropped.length === 0 || messages[start]?.role !== "assistant") {
     return { messages, compacted: false, dropped: [], before, after: before };
   }
 
