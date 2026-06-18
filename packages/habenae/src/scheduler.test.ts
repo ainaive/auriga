@@ -50,6 +50,16 @@ function makeRun(
   };
 }
 
+test("invalid quotas are rejected at construction", () => {
+  const store = new InMemoryJobStore();
+  const run = async () => {};
+  expect(() => new Scheduler({ store, run, quotas: { global: 0, perFactio: 1 } })).toThrow(/global/);
+  expect(() => new Scheduler({ store, run, quotas: { global: 1, perFactio: 0 } })).toThrow(/perFactio/);
+  expect(
+    () => new Scheduler({ store, run, quotas: { global: 1, perFactio: 1 }, retry: { maxRetries: -1 } }),
+  ).toThrow(/maxRetries/);
+});
+
 test("global quota caps total concurrency", async () => {
   const store = new InMemoryJobStore();
   for (const id of ["a", "b", "c"]) await store.create(spec(id, `t-${id}`));

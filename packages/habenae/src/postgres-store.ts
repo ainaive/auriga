@@ -34,6 +34,8 @@ create table if not exists traces (
 alter table jobs add column if not exists model text;
 alter table jobs add column if not exists approved boolean not null default false;
 alter table jobs add column if not exists retries integer not null default 0;
+-- Tenant index for scheduler/list hot paths.
+create index if not exists jobs_factio_idx on jobs ((spec ->> 'factio'));
 `;
 
 export async function migrate(pool: Pool): Promise<void> {

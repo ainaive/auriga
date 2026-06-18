@@ -46,7 +46,18 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * are marked failed. Single event loop, so in-flight bookkeeping is race-free.
  */
 export class Scheduler {
-  constructor(private readonly opts: SchedulerOptions) {}
+  constructor(private readonly opts: SchedulerOptions) {
+    const { global, perFactio } = opts.quotas;
+    if (!Number.isInteger(global) || global < 1) {
+      throw new Error(`invalid quotas.global: ${global} (expected integer >= 1)`);
+    }
+    if (!Number.isInteger(perFactio) || perFactio < 1) {
+      throw new Error(`invalid quotas.perFactio: ${perFactio} (expected integer >= 1)`);
+    }
+    if (opts.retry && (!Number.isInteger(opts.retry.maxRetries) || opts.retry.maxRetries < 0)) {
+      throw new Error(`invalid retry.maxRetries: ${opts.retry.maxRetries} (expected integer >= 0)`);
+    }
+  }
 
   async drain(): Promise<SchedulerReport> {
     const report: SchedulerReport = {

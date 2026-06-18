@@ -1,5 +1,5 @@
 import type { ModelProvider, SkillRegistry, SkillUsageSink, VerificationKey } from "@auriga/core";
-import { Recorder, traceCost } from "@auriga/capella";
+import { Recorder, estimateCostUsd } from "@auriga/capella";
 import { runJob, type JobEvent, type RunJobResult } from "@auriga/currus";
 import type { ModelRouter } from "@auriga/provider";
 import type { CreateSandboxOptions, SandboxDriver } from "@auriga/sandbox";
@@ -145,15 +145,22 @@ export class Worker {
       });
 
       // Runtime → governance feedback: attribute the job's cost across the skills
-      // it used, recording success/failure per skill.
+      // it used. Use result.usage (cumulative across resumes), and make it
+      // best-effort so a feedback failure can't fail an already-persisted job.
       if (this.opts.usageSink && result.state !== "paused" && result.loadedSkills.length > 0) {
-        const total = traceCost(trace).cost_usd;
+        const total = estimateCostUsd(model, result.usage);
         const perSkill = Number.isFinite(total) ? total / result.loadedSkills.length : 0;
-        for (const skill of result.loadedSkills) {
-          await this.opts.usageSink.recordUsage(skill.name, skill.version, {
-            success: result.state === "done",
-            cost_usd: perSkill,
-          });
+        const sink = this.opts.usageSink;
+        const results = await Promise.allSettled(
+          result.loadedSkills.map((skill) =>
+            sink.recordUsage(skill.name, skill.version, {
+              success: result.state === "done",
+              cost_usd: perSkill,
+            }),
+          ),
+        );
+        for (const r of results) {
+          if (r.status === "rejected") console.warn(`[auriga] skill usage feedback failed: ${r.reason}`);
         }
       }
       return result;

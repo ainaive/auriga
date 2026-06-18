@@ -76,6 +76,20 @@ test("allowed_skills is narrowed to the tenant's permitted set", async () => {
   expect((await store.get("j"))?.spec.allowed_skills).toEqual(["fix-failing-test"]);
 });
 
+test("a cross-tenant dependency is rejected", async () => {
+  const store = new InMemoryJobStore();
+  // a job owned by a different tenant
+  await store.create(spec({ id: "other-dep", factio: "rival" }));
+  await expect(
+    submitJob({
+      store,
+      policy,
+      spec: spec({ id: "dependent", depends_on: ["other-dep"] }),
+      actor: { factio: "acme", role: "dev" },
+    }),
+  ).rejects.toBeInstanceOf(PolicyError);
+});
+
 test("a required skill outside the permitted set is rejected", async () => {
   const store = new InMemoryJobStore();
   await expect(

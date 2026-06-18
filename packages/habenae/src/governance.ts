@@ -62,6 +62,17 @@ export async function submitJob(opts: SubmitOptions): Promise<JobRecord> {
     throw new PolicyError(`role ${actor.role} is not permitted in factio ${spec.factio}`);
   }
 
+  // Dependencies must stay within the tenant — a cross-tenant dep would gate this
+  // job on another factio's state (and leak its lifecycle across the boundary).
+  for (const depId of spec.depends_on ?? []) {
+    const dep = await store.get(depId);
+    if (dep && dep.spec.factio !== spec.factio) {
+      throw new PolicyError(
+        `dependency ${depId} belongs to factio ${dep.spec.factio}, not ${spec.factio}`,
+      );
+    }
+  }
+
   if (fp.allowed_tools) {
     const disallowed = spec.allowed_tools.filter((t) => !fp.allowed_tools!.includes(t));
     if (disallowed.length > 0) {

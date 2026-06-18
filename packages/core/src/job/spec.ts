@@ -61,7 +61,7 @@ export const JobSpecSchema = z.object({
   /** Require human approval before the job may execute (HITL gate). */
   require_approval: z.boolean().optional(),
   /** Job ids this job depends on; it runs only once they are all `done` (DAG). */
-  depends_on: z.array(z.string()).optional(),
+  depends_on: z.array(z.string().min(1)).optional(),
 });
 
 export type WorkspaceRef = z.infer<typeof WorkspaceRefSchema>;

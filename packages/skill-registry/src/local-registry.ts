@@ -122,8 +122,24 @@ export class LocalSkillRegistry implements SkillRegistry, SkillUsageSink {
     }
   }
 
-  /** Runtime → governance feedback: aggregate per-skill usage/success/cost. */
-  async recordUsage(name: string, _version: string, usage: SkillUsage): Promise<void> {
+  /**
+   * Runtime → governance feedback: aggregate per-skill usage/success/cost.
+   * Serialized per registry instance so concurrent workers in this process don't
+   * lose updates via read-modify-write races. (Cross-process atomicity is the
+   * real platform's responsibility.)
+   */
+  recordUsage(name: string, _version: string, usage: SkillUsage): Promise<void> {
+    const run = this.usageChain.then(() => this.applyUsage(name, usage));
+    this.usageChain = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
+  private usageChain: Promise<void> = Promise.resolve();
+
+  private async applyUsage(name: string, usage: SkillUsage): Promise<void> {
     const dir = join(this.baseDir, name);
     await mkdir(dir, { recursive: true });
     const rec = (await this.readUsage(name)) ?? { uses: 0, successes: 0, total_cost_usd: 0 };
@@ -146,8 +162,11 @@ export class LocalSkillRegistry implements SkillRegistry, SkillUsageSink {
   private async readUsage(name: string): Promise<UsageRecord | undefined> {
     try {
       return JSON.parse(await readFile(join(this.baseDir, name, "usage.json"), "utf8")) as UsageRecord;
-    } catch {
-      return undefined;
+    } catch (err) {
+      // Only "absent" is benign; surface corruption/permission errors so we don't
+      // silently reinitialize and overwrite valid historical stats.
+      if ((err as { code?: string }).code === "ENOENT") return undefined;
+      throw err;
     }
   }
 

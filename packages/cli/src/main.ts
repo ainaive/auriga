@@ -206,6 +206,11 @@ async function trace(store: FileJobStore, args: string[]): Promise<void> {
 
 async function list(store: FileJobStore, args: string[]): Promise<void> {
   const factio = flagValue(args, "--factio");
+  if (args.includes("--factio") && !factio) {
+    console.error("usage: auriga list --factio <factio>");
+    process.exitCode = 1;
+    return;
+  }
   const jobs = factio ? await store.listByFactio(factio) : await store.list();
   if (!jobs.length) {
     console.log(factio ? `(no jobs in factio ${factio})` : "(no jobs)");
@@ -218,7 +223,10 @@ async function list(store: FileJobStore, args: string[]): Promise<void> {
 
 function flagValue(args: string[], name: string): string | undefined {
   const i = args.indexOf(name);
-  return i >= 0 ? args[i + 1] : undefined;
+  if (i < 0) return undefined;
+  const value = args[i + 1];
+  // Don't consume the next flag as this flag's value.
+  return value && !value.startsWith("--") ? value : undefined;
 }
 
 function intArg(args: string[], name: string, fallback: number): number {
