@@ -1,5 +1,5 @@
-import type { ModelProvider, SkillRegistry, VerificationKey } from "@auriga/core";
-import { Recorder } from "@auriga/capella";
+import type { ModelProvider, SkillRegistry, SkillUsageSink, VerificationKey } from "@auriga/core";
+import { Recorder, traceCost } from "@auriga/capella";
 import { runJob, type JobEvent, type RunJobResult } from "@auriga/currus";
 import type { ModelRouter } from "@auriga/provider";
 import type { CreateSandboxOptions, SandboxDriver } from "@auriga/sandbox";
@@ -15,6 +15,8 @@ export interface WorkerOptions {
   router?: ModelRouter;
   registry?: SkillRegistry;
   trustedKeys?: VerificationKey[];
+  /** Runtime → governance feedback sink for per-skill usage/success/cost. */
+  usageSink?: SkillUsageSink;
   role?: string;
   maxAttempts?: number;
   /** Progress hook (forwarded from the runner) for live CLI/console feedback. */
@@ -124,16 +126,15 @@ export class Worker {
         },
       });
 
-      await store.saveTrace(
-        recorder.finish({
-          state: result.state,
-          reason: result.reason,
-          attempts: result.attempts,
-          steps: result.steps,
-          usage: result.usage,
-          loaded_skills: result.loadedSkills,
-        }),
-      );
+      const trace = recorder.finish({
+        state: result.state,
+        reason: result.reason,
+        attempts: result.attempts,
+        steps: result.steps,
+        usage: result.usage,
+        loaded_skills: result.loadedSkills,
+      });
+      await store.saveTrace(trace);
       await store.update(jobId, {
         state: result.state,
         reason: result.reason,
@@ -142,6 +143,19 @@ export class Worker {
         steps: result.steps,
         loaded_skills: result.loadedSkills,
       });
+
+      // Runtime → governance feedback: attribute the job's cost across the skills
+      // it used, recording success/failure per skill.
+      if (this.opts.usageSink && result.state !== "paused" && result.loadedSkills.length > 0) {
+        const total = traceCost(trace).cost_usd;
+        const perSkill = Number.isFinite(total) ? total / result.loadedSkills.length : 0;
+        for (const skill of result.loadedSkills) {
+          await this.opts.usageSink.recordUsage(skill.name, skill.version, {
+            success: result.state === "done",
+            cost_usd: perSkill,
+          });
+        }
+      }
       return result;
     } finally {
       await sandbox.destroy();

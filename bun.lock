@@ -84,6 +84,9 @@
         "graphile-worker": "^0.17.2",
         "pg": "^8.21.0",
       },
+      "devDependencies": {
+        "@auriga/skill-registry": "workspace:*",
+      },
     },
     "packages/provider": {
       "name": "@auriga/provider",
