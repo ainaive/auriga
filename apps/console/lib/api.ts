@@ -2,11 +2,13 @@
 // is a thin read-side surface; it defines its own response types rather than
 // importing the Bun/server packages.
 
-const BASE = process.env.NEXT_PUBLIC_AURIGA_API ?? "http://localhost:8787";
+export const BASE = process.env.NEXT_PUBLIC_AURIGA_API ?? "http://localhost:8787";
 const FACTIO = process.env.AURIGA_FACTIO ?? "default";
 const ROLE = process.env.AURIGA_ROLE ?? "viewer";
 
-const authHeaders: Record<string, string> = {
+// Sent on tenant-scoped calls. Set server-side (never reaches the browser); the
+// write actions in lib/actions.ts reuse these so there's one source of truth.
+export const authHeaders: Record<string, string> = {
   "x-auriga-factio": FACTIO,
   "x-auriga-role": ROLE,
 };

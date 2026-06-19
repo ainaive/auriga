@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
+import { ApproveButton } from "@/components/approve-button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardTitle } from "@/components/ui/card";
 
@@ -24,6 +25,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
           model {job.model ?? "—"} · attempts {job.attempts} · steps {job.steps} · tokens{" "}
           {job.usage.input_tokens}/{job.usage.output_tokens}
         </p>
+        {job.state === "paused" && <ApproveButton id={job.id} />}
       </Card>
 
       <Card>
