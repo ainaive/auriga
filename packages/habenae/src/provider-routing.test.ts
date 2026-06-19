@@ -1,9 +1,15 @@
 import { test, expect } from "bun:test";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { textResponse, toolUseResponse, type JobSpec } from "@auriga/core";
 import { costAwareRouter, StubProvider } from "@auriga/provider";
 import { LocalSandboxDriver } from "@auriga/sandbox";
 import { InMemoryJobStore } from "./memory-store";
 import { Worker } from "./worker";
+
+// Empty workspace dir — never "/tmp" (the Worker copies the workspace).
+const EMPTY_WS = await mkdtemp(join(tmpdir(), "auriga-ws-"));
 
 function spec(id: string, maxCostUsd: number): JobSpec {
   return {
@@ -11,7 +17,7 @@ function spec(id: string, maxCostUsd: number): JobSpec {
     factio: "default",
     created_by: "u",
     goal: "g",
-    context_refs: { workspace: { kind: "dir", url_or_path: "/tmp" } },
+    context_refs: { workspace: { kind: "dir", url_or_path: EMPTY_WS } },
     allowed_tools: ["write_file"],
     acceptance_criteria: [{ kind: "file_exists", path: "answer.txt" }],
     budget: { max_tokens: 100_000, max_wall_time_s: 60, max_cost_usd: maxCostUsd, max_steps: 20 },
