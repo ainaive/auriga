@@ -2,9 +2,10 @@ import { test, expect } from "bun:test";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { textResponse, toolUseResponse, type JobSpec } from "@auriga/core";
+import { textResponse, toolUseResponse, type JobEventEnvelope, type JobSpec } from "@auriga/core";
 import { StubProvider } from "@auriga/provider";
 import { LocalSandboxDriver } from "@auriga/sandbox";
+import { InMemoryEventBus } from "./event-bus";
 import { InMemoryJobStore } from "./memory-store";
 import { Worker } from "./worker";
 
@@ -61,6 +62,41 @@ test("persists a trace with model + verify events for the run", async () => {
   expect(trace?.result.state).toBe("done");
   expect(trace?.events.some((e) => e.type === "model_response")).toBe(true);
   expect(trace?.events.some((e) => e.type === "verify")).toBe(true);
+});
+
+test("publishes live state/trace/progress/done events that match the sealed trace", async () => {
+  const store = new InMemoryJobStore();
+  const bus = new InMemoryEventBus();
+  await store.create(spec("job_live"));
+  const seen: JobEventEnvelope[] = [];
+  bus.subscribe("job_live", (e) => seen.push(e));
+
+  await new Worker({
+    store,
+    provider: new StubProvider([
+      toolUseResponse("write_file", { path: "answer.txt", content: "x" }),
+      textResponse("done"),
+    ]),
+    model: "stub",
+    sandboxDriver: new LocalSandboxDriver(),
+    bus,
+  }).run("job_live");
+
+  // Delivery order is gap-free and matches the per-job monotonic seq.
+  expect(seen.map((e) => e.seq)).toEqual(seen.map((_, i) => i + 1));
+  // Lifecycle: first a state event (planning), last the terminal `done` sentinel.
+  expect(seen[0]?.data.kind).toBe("state");
+  expect(seen.at(-1)?.data).toMatchObject({ kind: "done", state: "done" });
+  // A live progress (with cost) event was emitted for the attempt.
+  expect(seen.some((e) => e.data.kind === "progress")).toBe(true);
+
+  // The live `trace` envelopes carry exactly the sealed trace's events, in order —
+  // so the live timeline and the sealed-trace viewer render from one source.
+  const liveTraceEvents = seen
+    .filter((e) => e.data.kind === "trace")
+    .map((e) => (e.data as { kind: "trace"; event: unknown }).event);
+  const sealed = await store.loadTrace("job_live");
+  expect(liveTraceEvents).toEqual(sealed?.events ?? []);
 });
 
 test("require_approval pauses the job until approved, then completes (HITL)", async () => {

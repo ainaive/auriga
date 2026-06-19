@@ -1,9 +1,17 @@
-import type { ModelProvider, SkillRegistry, SkillUsageSink, VerificationKey } from "@auriga/core";
+import type {
+  JobLiveEvent,
+  ModelProvider,
+  SkillRegistry,
+  SkillUsageSink,
+  TraceEvent,
+  VerificationKey,
+} from "@auriga/core";
 import { Recorder, estimateCostUsd } from "@auriga/capella";
 import { runJob, type JobEvent, type RunJobResult } from "@auriga/currus";
 import type { ModelRouter, ProviderRouter } from "@auriga/provider";
 import type { CreateSandboxOptions, SandboxDriver } from "@auriga/sandbox";
 import { safeAudit, type AuditLog } from "./audit";
+import type { EventBus } from "./event-bus";
 import type { JobStore, WorkerCheckpoint } from "./types";
 
 const STATE_ACTION: Record<string, string> = {
@@ -29,6 +37,8 @@ export interface WorkerOptions {
   usageSink?: SkillUsageSink;
   /** Optional audit trail for job lifecycle events. */
   audit?: AuditLog;
+  /** Optional live event bus: publishes state/trace/progress/done for browsers watching the run. */
+  bus?: EventBus;
   role?: string;
   maxAttempts?: number;
   /** Progress hook (forwarded from the runner) for live CLI/console feedback. */
@@ -59,11 +69,27 @@ export class Worker {
     const model = exec?.actModel ?? routed?.act ?? this.opts.model;
     const planModel = exec?.planModel ?? routed?.plan;
 
+    // Live event publishing (no-op when no bus is wired). Fire-and-forget so a slow
+    // or failing subscriber never blocks or breaks the run; the in-memory bus assigns
+    // `seq` synchronously, so call order is preserved.
+    const bus = this.opts.bus;
+    const publish = (data: JobLiveEvent): void => {
+      if (!bus) return;
+      void bus
+        .publish({ job_id: jobId, factio: record.spec.factio, data })
+        .catch((err) =>
+          console.warn(
+            `[auriga] event publish failed: ${err instanceof Error ? err.message : err}`,
+          ),
+        );
+    };
+
     // HITL "pause first": short-circuit unapproved jobs BEFORE creating a sandbox,
     // so no resources are spent (and workspace seeding can't fail) before approval.
     if (record.spec.require_approval && !record.approved) {
       const reason = "awaiting human approval";
       await store.update(jobId, { state: "paused", reason, model });
+      publish({ kind: "state", state: "paused", reason });
       await store.saveTrace(
         new Recorder(jobId, model).finish({
           state: "paused",
@@ -80,6 +106,7 @@ export class Worker {
         action: "job.paused",
         job_id: jobId,
       });
+      publish({ kind: "done", state: "paused", reason });
       return {
         state: "paused",
         reason,
@@ -95,16 +122,37 @@ export class Worker {
     const checkpoint = await store.loadCheckpoint(jobId);
     const sandbox = await this.opts.sandboxDriver.create(seedFor(record, checkpoint));
     const recorder = new Recorder(jobId, model);
+    // Tee the trace: each event is buffered for the sealed trace (finish()) AND
+    // published live so a browser can render the step timeline as it happens.
+    const onTrace = (event: TraceEvent): void => {
+      recorder.record(event);
+      publish({ kind: "trace", event });
+    };
+    // Forward the progress hook AND publish a live progress+cost envelope.
+    const onEvent = (event: JobEvent): void => {
+      this.opts.onEvent?.(event);
+      if (event.type === "attempt") {
+        const cost = estimateCostUsd(model, event.usage);
+        publish({
+          kind: "progress",
+          attempt: event.attempt,
+          steps: event.steps,
+          usage: event.usage,
+          cost_usd: Number.isFinite(cost) ? cost : 0,
+        });
+      }
+    };
 
     try {
       await store.update(jobId, { state: checkpoint ? "running" : "planning", model });
+      publish({ kind: "state", state: checkpoint ? "running" : "planning", reason: null });
       const result = await runJob({
         spec: record.spec,
         provider,
         model,
         ...(planModel ? { planModel } : {}),
         sandbox,
-        onTrace: recorder.record,
+        onTrace,
         approvalGate: { isApproved: async () => (await store.get(jobId))?.approved ?? false },
         cancellationGate: {
           isCancelled: async () => (await store.get(jobId))?.cancel_requested ?? false,
@@ -113,7 +161,7 @@ export class Worker {
         ...(this.opts.trustedKeys ? { trustedKeys: this.opts.trustedKeys } : {}),
         ...(this.opts.role ? { role: this.opts.role } : {}),
         ...(this.opts.maxAttempts !== undefined ? { maxAttempts: this.opts.maxAttempts } : {}),
-        ...(this.opts.onEvent ? { onEvent: this.opts.onEvent } : {}),
+        onEvent,
         ...(checkpoint
           ? {
               resume: {
@@ -144,6 +192,7 @@ export class Worker {
             steps: info.steps,
             loaded_skills: info.loadedSkills,
           });
+          publish({ kind: "state", state: info.passed ? "verifying" : "running", reason: null });
           if (this.opts.crashAfterAttempt === info.attempt) {
             throw new Error(`simulated worker crash after attempt ${info.attempt}`);
           }
@@ -167,12 +216,14 @@ export class Worker {
         steps: result.steps,
         loaded_skills: result.loadedSkills,
       });
+      publish({ kind: "state", state: result.state, reason: result.reason });
       await safeAudit(this.opts.audit, {
         factio: record.spec.factio,
         actor: "worker",
         action: STATE_ACTION[result.state] ?? "job.unknown",
         job_id: jobId,
       });
+      publish({ kind: "done", state: result.state, reason: result.reason });
 
       // Runtime → governance feedback: attribute the job's cost across the skills
       // it used. Use result.usage (cumulative across resumes), and make it
