@@ -10,7 +10,7 @@ import type {
   SandboxSnapshot,
 } from "./types";
 
-const DEFAULT_IMAGE = "oven/bun:1";
+export const DEFAULT_IMAGE = "oven/bun:1";
 const WORKDIR = "/workspace";
 /** Cap for reads that treat stdout as full file content; fail closed past this. */
 const FILE_READ_CAP = 64_000_000;
