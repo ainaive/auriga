@@ -2,6 +2,7 @@
 import { join } from "node:path";
 import { FileAuditLog, FileJobStore, InMemoryPolicy } from "@auriga/habenae";
 import { createApp } from "./app";
+import { createRunner } from "./runner";
 
 /**
  * Dev server entry. Wires the file-backed control plane and a permissive default
@@ -19,10 +20,14 @@ function parsePort(raw: string | undefined): number {
 }
 const port = parsePort(process.env.PORT);
 
+const store = new FileJobStore(home);
+const audit = new FileAuditLog(home);
 const app = createApp({
-  store: new FileJobStore(home),
-  audit: new FileAuditLog(home),
+  store,
+  audit,
   policy: new InMemoryPolicy([{ factio: "default", roles: ["dev", "admin", "viewer"] }]),
+  // In-process background runner (undefined without ANTHROPIC_API_KEY → /run answers 503).
+  runJob: createRunner(store, audit)?.run,
 });
 
 console.log(`auriga api listening on http://localhost:${port}`);

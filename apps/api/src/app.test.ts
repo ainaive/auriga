@@ -111,3 +111,54 @@ test("skills endpoint returns [] without a marketplace", async () => {
   const app = createApp(deps());
   expect(await (await app.request("/skills")).json()).toEqual([]);
 });
+
+test("POST /jobs/:id/run accepts (202) and invokes the runner", async () => {
+  const d = deps();
+  const ran: string[] = [];
+  const app = createApp({ ...d, runJob: (id) => ran.push(id) });
+  await d.store.create(spec);
+
+  const res = await post(app, "/jobs/job_api/run", {}, AUTH);
+  expect(res.status).toBe(202);
+  expect(await res.json()).toEqual({ running: true });
+  expect(ran).toEqual(["job_api"]);
+
+  const audit = (await (await app.request("/audit")).json()) as Array<{ action: string }>;
+  expect(audit.map((e) => e.action)).toContain("job.run_requested");
+});
+
+test("POST /jobs/:id/run is 503 when no runner is configured", async () => {
+  const d = deps();
+  const app = createApp(d); // no runJob
+  await d.store.create(spec);
+  expect((await post(app, "/jobs/job_api/run", {}, AUTH)).status).toBe(503);
+});
+
+test("POST /jobs/:id/run is 409 when the job is already active", async () => {
+  const d = deps();
+  const ran: string[] = [];
+  const app = createApp({ ...d, runJob: (id) => ran.push(id) });
+  await d.store.create(spec);
+  await d.store.update("job_api", { state: "running" });
+
+  const res = await post(app, "/jobs/job_api/run", {}, AUTH);
+  expect(res.status).toBe(409);
+  expect(ran).toEqual([]); // not kicked
+});
+
+test("POST /jobs/:id/run requires auth and 404s cross-tenant", async () => {
+  const d = deps();
+  const app = createApp({ ...d, runJob: () => {} });
+  await d.store.create(spec);
+  expect((await post(app, "/jobs/job_api/run", {})).status).toBe(401);
+  expect(
+    (
+      await post(
+        app,
+        "/jobs/job_api/run",
+        {},
+        { "x-auriga-factio": "other", "x-auriga-role": "dev" },
+      )
+    ).status,
+  ).toBe(404);
+});

@@ -18,7 +18,12 @@ export interface ApiDeps {
   audit: AuditLog;
   /** Optional skill marketplace ({ registry, stats }). */
   marketplace?: MarketplaceDeps;
+  /** Optional background job runner. Absent (e.g. no ANTHROPIC_API_KEY) → POST /jobs/:id/run is 503. */
+  runJob?: (jobId: string) => void;
 }
+
+/** Job states for which a run is already in progress (a new run is rejected). */
+const ACTIVE_STATES = ["planning", "running", "verifying"];
 
 /** Caller identity from headers. In production the API sits behind the platform's
  *  OIDC/auth gateway; these headers carry the resolved tenant + role. */
@@ -108,6 +113,28 @@ export function createApp(deps: ApiDeps): Hono {
       job_id: id,
     });
     return c.json({ approved: true });
+  });
+
+  // Kick the job to run in the background (dev-grade, in-process). 202 = accepted.
+  app.post("/jobs/:id/run", async (c) => {
+    const actor = actorOf(c);
+    if (!actor) return c.json({ error: "auth required" }, 401);
+    const id = c.req.param("id");
+    const rec = await deps.store.get(id);
+    if (!rec || rec.spec.factio !== actor.factio) return c.json({ error: "not found" }, 404);
+    if (!deps.runJob)
+      return c.json({ error: "execution not configured (set ANTHROPIC_API_KEY)" }, 503);
+    if (ACTIVE_STATES.includes(rec.state))
+      return c.json({ error: `job is already ${rec.state}` }, 409);
+    if (rec.spec.require_approval && !rec.approved) return c.json({ error: "approve first" }, 409);
+    deps.runJob(id);
+    await safeAudit(deps.audit, {
+      factio: rec.spec.factio,
+      actor: actor.role,
+      action: "job.run_requested",
+      job_id: id,
+    });
+    return c.json({ running: true }, 202);
   });
 
   // Aggregate governance views + console (deployment gates these at the proxy).
