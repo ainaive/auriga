@@ -3,8 +3,10 @@ import type { JobSpec } from "@auriga/core";
 import {
   InMemoryAuditLog,
   InMemoryConfigStore,
+  InMemoryEventBus,
   InMemoryJobStore,
   InMemoryPolicy,
+  liveEvent,
 } from "@auriga/habenae";
 import { createApp } from "./app";
 
@@ -248,6 +250,78 @@ test("POST /jobs/:id/cancel is 409 for a terminal job and 404 cross-tenant", asy
     ).status,
   ).toBe(404);
   expect((await post(app, "/jobs/job_api/cancel", {})).status).toBe(401);
+});
+
+// Parse Hono SSE text into [{ id, data }] frames.
+function sseFrames(body: string): Array<{ id: number; data: { kind: string } }> {
+  return body
+    .split("\n\n")
+    .filter((f) => f.includes("data:"))
+    .map((frame) => {
+      const id = Number(/id:\s*(\d+)/.exec(frame)?.[1]);
+      const data = JSON.parse(/data:\s*(.+)/.exec(frame)?.[1] ?? "{}");
+      return { id, data };
+    });
+}
+
+async function seedLiveJob(): Promise<{
+  app: ReturnType<typeof createApp>;
+  store: InMemoryJobStore;
+  bus: InMemoryEventBus;
+}> {
+  const d = deps();
+  const bus = new InMemoryEventBus();
+  const app = createApp({ ...d, bus });
+  await d.store.create(spec);
+  // A complete run: planning → progress → done sentinel.
+  await bus.publish(
+    liveEvent("job_api", "acme", { kind: "state", state: "planning", reason: null }),
+  );
+  await bus.publish(
+    liveEvent("job_api", "acme", {
+      kind: "progress",
+      attempt: 1,
+      steps: 1,
+      usage: { input_tokens: 1, output_tokens: 1 },
+      cost_usd: 0,
+    }),
+  );
+  await bus.publish(liveEvent("job_api", "acme", { kind: "done", state: "done", reason: null }));
+  return { app, store: d.store, bus };
+}
+
+test("GET /jobs/:id/events replays live events in order and closes on done", async () => {
+  const { app } = await seedLiveJob();
+  const res = await app.request("/jobs/job_api/events", { headers: AUTH });
+  expect(res.status).toBe(200);
+  expect(res.headers.get("content-type")).toContain("text/event-stream");
+
+  const frames = sseFrames(await res.text());
+  expect(frames.map((f) => f.id)).toEqual([1, 2, 3]);
+  expect(frames.map((f) => f.data.kind)).toEqual(["state", "progress", "done"]);
+});
+
+test("GET /jobs/:id/events backfills only events after the ?after= cursor", async () => {
+  const { app } = await seedLiveJob();
+  const res = await app.request("/jobs/job_api/events?after=2", { headers: AUTH });
+  const frames = sseFrames(await res.text());
+  expect(frames.map((f) => f.id)).toEqual([3]);
+  expect(frames.map((f) => f.data.kind)).toEqual(["done"]);
+});
+
+test("GET /jobs/:id/events: 401 without auth, 404 cross-tenant, 501 without a bus", async () => {
+  const { app, store } = await seedLiveJob();
+  expect((await app.request("/jobs/job_api/events")).status).toBe(401);
+  expect(
+    (
+      await app.request("/jobs/job_api/events", {
+        headers: { "x-auriga-factio": "other", "x-auriga-role": "dev" },
+      })
+    ).status,
+  ).toBe(404);
+
+  const noBus = createApp({ store, audit: new InMemoryAuditLog(), policy: new InMemoryPolicy([]) });
+  expect((await noBus.request("/jobs/job_api/events", { headers: AUTH })).status).toBe(501);
 });
 
 test("POST /jobs/:id/run requires auth and 404s cross-tenant", async () => {

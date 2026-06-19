@@ -1,6 +1,6 @@
 import { AnthropicProvider, MODELS } from "@auriga/provider";
 import { selectDriver, type SandboxDriver } from "@auriga/sandbox";
-import { Worker, type AuditLog, type JobStore } from "@auriga/habenae";
+import { Worker, type AuditLog, type EventBus, type JobStore } from "@auriga/habenae";
 
 /**
  * A background job runner for the dev API. `run(id)` kicks the existing Worker in
@@ -13,6 +13,7 @@ import { Worker, type AuditLog, type JobStore } from "@auriga/habenae";
 export function createRunner(
   store: JobStore,
   audit: AuditLog,
+  bus?: EventBus,
 ): { run: (jobId: string) => void } | undefined {
   if (!process.env.ANTHROPIC_API_KEY) return undefined;
 
@@ -35,6 +36,7 @@ export function createRunner(
             model,
             sandboxDriver: await driver(),
             audit,
+            ...(bus ? { bus } : {}),
           });
           await worker.run(jobId);
         } catch (err) {
