@@ -165,7 +165,7 @@ the engine is testable hermetically and adaptable in production. **Self-built** 
 | `SkillRegistry` | [`core/src/skill/types.ts`](../packages/core/src/skill/types.ts) | `LocalSkillRegistry` (`openDevRegistry`) | self-built (interim) |
 | `AuditLog` | [`habenae/src/audit.ts`](../packages/habenae/src/audit.ts) | `InMemoryAuditLog`, `FileAuditLog`, `PostgresAuditLog` | self-built |
 | `Policy` | [`habenae/src/governance.ts`](../packages/habenae/src/governance.ts) | `InMemoryPolicy`, `StoreBackedPolicy` | self-built |
-| `EventBus` | [`habenae/src/event-bus.ts`](../packages/habenae/src/event-bus.ts) | `InMemoryEventBus`, *(Postgres `LISTEN/NOTIFY`, planned)* | self-built |
+| `EventBus` | [`habenae/src/event-bus.ts`](../packages/habenae/src/event-bus.ts) | `InMemoryEventBus`, `PostgresEventBus` (LISTEN/NOTIFY) | self-built |
 
 The hermetic default test gate uses the in-memory/file/local/stub drivers; the live Postgres + Docker +
 graphile drivers are exercised by the CI `integration` job (see [CONTRIBUTING](../CONTRIBUTING.md)).
@@ -177,9 +177,9 @@ lifecycle `state` transitions, each `TraceEvent` (teed from the `Recorder`, so t
 unchanged), `progress` (attempt/steps/usage + live cost), and a terminal `done`. Each event is wrapped in
 a `JobEventEnvelope` with a per-job monotonic `seq`. The HTTP API exposes them over SSE at
 `GET /jobs/:id/events` (backfill-then-tail via `Last-Event-ID`); the Next.js console renders them as a live
-step timeline (see [api.md](./api.md)). `InMemoryEventBus` serves the in-process dev/test path; a Postgres
-`LISTEN/NOTIFY` bus (planned) bridges the production cross-process (graphile-worker) path with the same
-`seq` semantics.
+step timeline (see [api.md](./api.md)). `InMemoryEventBus` serves the in-process dev/test path;
+`PostgresEventBus` (a durable `job_events` log + `LISTEN/NOTIFY`, selected via `selectEventBus`) bridges the
+production cross-process (graphile-worker) path with the same `seq` semantics.
 
 ## Domain model
 

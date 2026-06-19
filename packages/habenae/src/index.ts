@@ -59,9 +59,13 @@ export { PostgresJobStore, migrate, SCHEMA_SQL } from "./postgres-store";
 export { GraphileQueue, RUN_JOB_TASK } from "./graphile-queue";
 export {
   InMemoryEventBus,
+  PostgresEventBus,
+  selectEventBus,
   liveEvent,
+  JOB_EVENTS_SCHEMA_SQL,
   type EventBus,
   type PublishInput,
+  type SelectEventBusOptions,
   type Unsubscribe,
 } from "./event-bus";
 export { Worker, type WorkerOptions } from "./worker";
