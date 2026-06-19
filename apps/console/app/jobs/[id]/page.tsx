@@ -2,10 +2,12 @@ import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { ApproveButton } from "@/components/approve-button";
 import { CancelButton } from "@/components/cancel-button";
-import { JobProgress } from "@/components/job-progress";
+import { LiveRun } from "@/components/live-run";
 import { RunButton } from "@/components/run-button";
+import { RunTimeline } from "@/components/run-timeline";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardTitle } from "@/components/ui/card";
+import { TERMINAL_STATES } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -16,48 +18,53 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
   const trace = await api.trace(id);
 
   const active = ["planning", "running", "verifying"].includes(job.state);
-  const terminal = ["done", "failed", "cancelled"].includes(job.state);
+  const terminal = TERMINAL_STATES.includes(job.state);
   const needsApproval = job.state === "paused" && !job.approved;
   // Runnable: not currently active, not done, and not waiting on approval (failed/cancelled re-run ok).
   const runnable = !active && job.state !== "done" && !needsApproval;
   const cancellable = !terminal; // pending / planning / running / verifying / paused
+  const tokens = job.usage.input_tokens + job.usage.output_tokens;
 
   return (
-    <main className="space-y-6">
+    <div className="space-y-5">
       <Card>
-        <CardTitle>{job.id}</CardTitle>
         <div className="flex items-center gap-3">
-          <Badge tone={job.state}>{job.state}</Badge>
-          <span className="text-sm text-neutral-600">{job.reason}</span>
+          <h1 className="font-mono text-sm font-semibold">{job.id}</h1>
+          <Badge tone={job.state} dot>
+            {job.state}
+          </Badge>
+          {job.reason && <span className="text-sm text-muted-foreground">{job.reason}</span>}
         </div>
         <p className="mt-2 text-sm">{job.spec.goal}</p>
-        <p className="mt-2 text-xs text-neutral-500">
+        <p className="mt-2 text-xs text-muted-foreground tabular-nums">
           model {job.model ?? "—"} · attempts {job.attempts} · steps {job.steps} · tokens{" "}
-          {job.usage.input_tokens}/{job.usage.output_tokens}
+          {tokens.toLocaleString()}
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           {needsApproval && <ApproveButton id={job.id} />}
           {runnable && <RunButton id={job.id} />}
           {cancellable && <CancelButton id={job.id} />}
-          {active && <span className="text-sm text-neutral-500">Running… (auto-refreshing)</span>}
         </div>
       </Card>
-      <JobProgress state={job.state} />
 
       <Card>
-        <CardTitle>Trace</CardTitle>
-        {!trace ? (
-          <p className="text-neutral-500">No trace recorded.</p>
+        <CardTitle>{terminal ? "Trace" : "Live run"}</CardTitle>
+        {terminal ? (
+          <RunTimeline events={trace?.events ?? []} />
         ) : (
-          <ol className="space-y-1 text-sm">
-            {trace.events.map((e, i) => (
-              <li key={i} className="font-mono text-xs text-neutral-700">
-                {e.type}
-              </li>
-            ))}
-          </ol>
+          <LiveRun
+            jobId={job.id}
+            seed={{
+              state: job.state,
+              reason: job.reason,
+              attempt: job.attempts,
+              steps: job.steps,
+              usage: job.usage,
+              trace: trace?.events ?? [],
+            }}
+          />
         )}
       </Card>
-    </main>
+    </div>
   );
 }
