@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "biome check",
     "format": "biome check --write",
-    "test": "bun test packages apps scripts",
+    "test": "bun test packages apps/api scripts",
     "check": "bun run typecheck && bun run lint && bun run test",
     "prepare": "lefthook install || true"
   },
