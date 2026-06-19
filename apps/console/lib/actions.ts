@@ -10,6 +10,7 @@ import { authHeaders, BASE } from "./api";
 
 export type CreateResult = { ok: true; id: string } | { ok: false; error: string };
 export type ApproveResult = { ok: true } | { ok: false; error: string };
+export type RunResult = { ok: true } | { ok: false; error: string };
 
 /** Read an `{ error }` body if present, else fall back to the HTTP status text. */
 async function errorOf(res: Response): Promise<string> {
@@ -52,6 +53,24 @@ export async function approveJob(id: string): Promise<ApproveResult> {
   let res: Response;
   try {
     res = await fetch(`${BASE}/jobs/${encodeURIComponent(id)}/approve`, {
+      method: "POST",
+      headers: authHeaders,
+      cache: "no-store",
+    });
+  } catch {
+    return { ok: false, error: "API unreachable" };
+  }
+  if (!res.ok) return { ok: false, error: await errorOf(res) };
+  revalidatePath(`/jobs/${id}`);
+  revalidatePath("/jobs");
+  return { ok: true };
+}
+
+/** Kick a job to run in the background (dev-grade in-process execution; needs ANTHROPIC_API_KEY). */
+export async function runJob(id: string): Promise<RunResult> {
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}/jobs/${encodeURIComponent(id)}/run`, {
       method: "POST",
       headers: authHeaders,
       cache: "no-store",

@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { ApproveButton } from "@/components/approve-button";
+import { JobProgress } from "@/components/job-progress";
+import { RunButton } from "@/components/run-button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardTitle } from "@/components/ui/card";
 
@@ -11,6 +13,11 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
   const job = await api.job(id);
   if (!job) notFound();
   const trace = await api.trace(id);
+
+  const active = ["planning", "running", "verifying"].includes(job.state);
+  const needsApproval = job.state === "paused" && !job.approved;
+  // Runnable: not currently active, not finished, and not waiting on approval.
+  const runnable = !active && job.state !== "done" && !needsApproval;
 
   return (
     <main className="space-y-6">
@@ -25,8 +32,11 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
           model {job.model ?? "—"} · attempts {job.attempts} · steps {job.steps} · tokens{" "}
           {job.usage.input_tokens}/{job.usage.output_tokens}
         </p>
-        {job.state === "paused" && <ApproveButton id={job.id} />}
+        {needsApproval && <ApproveButton id={job.id} />}
+        {runnable && <RunButton id={job.id} />}
+        {active && <p className="mt-3 text-sm text-neutral-500">Running… (auto-refreshing)</p>}
       </Card>
+      <JobProgress state={job.state} />
 
       <Card>
         <CardTitle>Trace</CardTitle>

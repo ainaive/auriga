@@ -33,10 +33,11 @@ export interface Dashboard {
 
 export interface Job {
   id: string;
-  spec: { factio: string; goal: string };
+  spec: { factio: string; goal: string; require_approval?: boolean };
   state: string;
   reason: string | null;
   model: string | null;
+  approved: boolean;
   attempts: number;
   steps: number;
   usage: Usage;
