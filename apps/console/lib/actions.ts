@@ -7,10 +7,32 @@
 
 import { revalidatePath } from "next/cache";
 import { authHeaders, BASE } from "./api";
+import { clearSession, setSession } from "./session";
 
 export type CreateResult = { ok: true; id: string } | { ok: false; error: string };
 export type ApproveResult = { ok: true } | { ok: false; error: string };
 export type RunResult = { ok: true } | { ok: false; error: string };
+export type LoginResult = { ok: true } | { ok: false; error: string };
+
+/** Establish a dev session (factio + role). Optionally gated by AURIGA_DEV_PASSWORD. */
+export async function login(
+  factio: string,
+  role: string,
+  password: string,
+): Promise<LoginResult> {
+  const required = process.env.AURIGA_DEV_PASSWORD;
+  if (required && password !== required) return { ok: false, error: "incorrect password" };
+  if (!factio.trim() || !role.trim()) return { ok: false, error: "factio and role are required" };
+  await setSession({ factio: factio.trim(), role: role.trim() });
+  return { ok: true };
+}
+
+/** Clear the dev session. */
+export async function logout(): Promise<void> {
+  await clearSession();
+}
+export type CancelResult = { ok: true } | { ok: false; error: string };
+export type SaveConfigResult = { ok: true } | { ok: false; error: string };
 
 /** Read an `{ error }` body if present, else fall back to the HTTP status text. */
 async function errorOf(res: Response): Promise<string> {
@@ -35,7 +57,7 @@ export async function createJob(specJson: string): Promise<CreateResult> {
   try {
     res = await fetch(`${BASE}/jobs`, {
       method: "POST",
-      headers: { ...authHeaders, "content-type": "application/json" },
+      headers: { ...(await authHeaders()), "content-type": "application/json" },
       body: JSON.stringify({ spec }),
       cache: "no-store",
     });
@@ -54,7 +76,7 @@ export async function approveJob(id: string): Promise<ApproveResult> {
   try {
     res = await fetch(`${BASE}/jobs/${encodeURIComponent(id)}/approve`, {
       method: "POST",
-      headers: authHeaders,
+      headers: await authHeaders(),
       cache: "no-store",
     });
   } catch {
@@ -66,13 +88,55 @@ export async function approveJob(id: string): Promise<ApproveResult> {
   return { ok: true };
 }
 
+/** Request cancellation of a job (cooperative — an active run stops at its next checkpoint). */
+export async function cancelJob(id: string): Promise<CancelResult> {
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}/jobs/${encodeURIComponent(id)}/cancel`, {
+      method: "POST",
+      headers: await authHeaders(),
+      cache: "no-store",
+    });
+  } catch {
+    return { ok: false, error: "API unreachable" };
+  }
+  if (!res.ok) return { ok: false, error: await errorOf(res) };
+  revalidatePath(`/jobs/${id}`);
+  revalidatePath("/jobs");
+  return { ok: true };
+}
+
+/** Save the control-plane config (policies + quotas). Requires an admin session (PUT /config). */
+export async function saveConfig(json: string): Promise<SaveConfigResult> {
+  let cfg: unknown;
+  try {
+    cfg = JSON.parse(json);
+  } catch {
+    return { ok: false, error: "config is not valid JSON" };
+  }
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}/config`, {
+      method: "PUT",
+      headers: { ...(await authHeaders()), "content-type": "application/json" },
+      body: JSON.stringify(cfg),
+      cache: "no-store",
+    });
+  } catch {
+    return { ok: false, error: "API unreachable" };
+  }
+  if (!res.ok) return { ok: false, error: await errorOf(res) };
+  revalidatePath("/config");
+  return { ok: true };
+}
+
 /** Kick a job to run in the background (dev-grade in-process execution; needs ANTHROPIC_API_KEY). */
 export async function runJob(id: string): Promise<RunResult> {
   let res: Response;
   try {
     res = await fetch(`${BASE}/jobs/${encodeURIComponent(id)}/run`, {
       method: "POST",
-      headers: authHeaders,
+      headers: await authHeaders(),
       cache: "no-store",
     });
   } catch {

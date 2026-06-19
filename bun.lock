@@ -127,6 +127,7 @@
         "@auriga/sandbox": "workspace:*",
         "graphile-worker": "^0.17.2",
         "pg": "^8.21.0",
+        "zod": "^4.0.0",
       },
       "devDependencies": {
         "@auriga/skill-registry": "workspace:*",

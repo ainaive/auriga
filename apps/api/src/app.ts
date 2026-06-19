@@ -1,11 +1,13 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { parseJobSpec, PolicyError } from "@auriga/core";
+import { isTerminal, parseJobSpec, PolicyError, type JobState } from "@auriga/core";
 import {
   buildDashboard,
+  parseConfig,
   safeAudit,
   submitJob,
   type AuditLog,
+  type ConfigStore,
   type JobStore,
   type Policy,
 } from "@auriga/habenae";
@@ -20,6 +22,8 @@ export interface ApiDeps {
   marketplace?: MarketplaceDeps;
   /** Optional background job runner. Absent (e.g. no ANTHROPIC_API_KEY) → POST /jobs/:id/run is 503. */
   runJob?: (jobId: string) => void;
+  /** Optional runtime config store (policies + quotas). Absent → /config is 501. */
+  config?: ConfigStore;
 }
 
 /** Job states for which a run is already in progress (a new run is rejected). */
@@ -127,6 +131,8 @@ export function createApp(deps: ApiDeps): Hono {
     if (ACTIVE_STATES.includes(rec.state))
       return c.json({ error: `job is already ${rec.state}` }, 409);
     if (rec.spec.require_approval && !rec.approved) return c.json({ error: "approve first" }, 409);
+    // Clear any stale cancel signal so re-running a cancelled/failed job isn't cancelled at once.
+    if (rec.cancel_requested) await deps.store.update(id, { cancel_requested: false });
     deps.runJob(id);
     await safeAudit(deps.audit, {
       factio: rec.spec.factio,
@@ -135,6 +141,69 @@ export function createApp(deps: ApiDeps): Hono {
       job_id: id,
     });
     return c.json({ running: true }, 202);
+  });
+
+  // Cooperative cancellation. An active job is signalled (the runner stops at its next
+  // checkpoint and finalizes `cancelled`); an idle job is marked `cancelled` directly.
+  // NOTE: read→check→update is not atomic. In the single-process dev runner the window is
+  // tiny and benign (the active branch only sets cancel_requested, which a finished job
+  // ignores). A production multi-worker deployment should make this a conditional UPDATE
+  // (e.g. `... where state not in (terminal)`), which the Postgres store can support.
+  app.post("/jobs/:id/cancel", async (c) => {
+    const actor = actorOf(c);
+    if (!actor) return c.json({ error: "auth required" }, 401);
+    const id = c.req.param("id");
+    const rec = await deps.store.get(id);
+    if (!rec || rec.spec.factio !== actor.factio) return c.json({ error: "not found" }, 404);
+    if (isTerminal(rec.state as JobState))
+      return c.json({ error: `job is already ${rec.state}` }, 409);
+    const active = ACTIVE_STATES.includes(rec.state);
+    await deps.store.update(
+      id,
+      active
+        ? { cancel_requested: true }
+        : { state: "cancelled", reason: "cancellation requested", cancel_requested: true },
+    );
+    await safeAudit(deps.audit, {
+      factio: rec.spec.factio,
+      actor: actor.role,
+      action: "job.cancel_requested",
+      job_id: id,
+    });
+    return c.json({ cancelling: active, state: active ? rec.state : "cancelled" });
+  });
+
+  // Runtime config: GET is an open governance view; PUT rewrites RBAC/quotas so it
+  // requires an authenticated `admin` (defense-in-depth on top of the proxy).
+  app.get("/config", async (c) => {
+    if (!deps.config) return c.json({ error: "config not available" }, 501);
+    return c.json(await deps.config.get());
+  });
+
+  app.put("/config", async (c) => {
+    if (!deps.config) return c.json({ error: "config not available" }, 501);
+    const actor = actorOf(c);
+    if (!actor) return c.json({ error: "auth required" }, 401);
+    if (actor.role !== "admin") return c.json({ error: "admin role required" }, 403);
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "invalid json" }, 400);
+    }
+    try {
+      const cfg = parseConfig(body);
+      await deps.config.set(cfg);
+      await safeAudit(deps.audit, {
+        factio: actor.factio,
+        actor: actor.role,
+        action: "config.updated",
+        job_id: null,
+      });
+      return c.json(cfg);
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : "invalid config" }, 400);
+    }
   });
 
   // Aggregate governance views + console (deployment gates these at the proxy).

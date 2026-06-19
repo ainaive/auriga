@@ -11,6 +11,7 @@ create table if not exists jobs (
   reason        text,
   model         text,
   approved      boolean not null default false,
+  cancel_requested boolean not null default false,
   retries       integer not null default 0,
   usage         jsonb not null default '{"input_tokens":0,"output_tokens":0}'::jsonb,
   attempts      integer not null default 0,
@@ -33,6 +34,7 @@ create table if not exists traces (
 -- Additive upgrades for databases created before these columns existed.
 alter table jobs add column if not exists model text;
 alter table jobs add column if not exists approved boolean not null default false;
+alter table jobs add column if not exists cancel_requested boolean not null default false;
 alter table jobs add column if not exists retries integer not null default 0;
 -- Tenant index for scheduler/list hot paths.
 create index if not exists jobs_factio_idx on jobs ((spec ->> 'factio'));
@@ -47,6 +49,7 @@ const UPDATABLE = new Set([
   "reason",
   "model",
   "approved",
+  "cancel_requested",
   "retries",
   "usage",
   "attempts",
@@ -141,6 +144,7 @@ interface JobRow {
   reason: string | null;
   model: string | null;
   approved: boolean;
+  cancel_requested: boolean;
   retries: number;
   usage: JobRecord["usage"];
   attempts: number;
@@ -158,6 +162,7 @@ function rowToRecord(row: JobRow): JobRecord {
     reason: row.reason,
     model: row.model,
     approved: row.approved,
+    cancel_requested: row.cancel_requested,
     retries: row.retries,
     usage: row.usage,
     attempts: row.attempts,

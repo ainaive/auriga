@@ -134,6 +134,47 @@ test("require_approval with no approval gate fails closed (pauses)", async () =>
   }
 });
 
+test("stops with state cancelled when the cancellation gate fires", async () => {
+  const sandbox = await emptySandbox();
+  try {
+    // Gate is already cancelled → the attempt loop bails before any model call.
+    const result = await runJob({
+      spec: makeSpec({ allowed_tools: ["write_file"] }),
+      provider: new StubProvider([textResponse("should not run")]),
+      model: "stub",
+      sandbox,
+      cancellationGate: { isCancelled: async () => true },
+    });
+    expect(result.state).toBe("cancelled");
+    expect(result.reason).toContain("cancellation");
+  } finally {
+    await sandbox.destroy();
+  }
+});
+
+test("cancels mid-run between steps", async () => {
+  const sandbox = await emptySandbox();
+  try {
+    // Cancel once the first step has written a.txt → the loop stops before step 2 writes b.txt.
+    const result = await runJob({
+      spec: makeSpec({ allowed_tools: ["write_file"] }),
+      provider: new StubProvider([
+        toolUseResponse("write_file", { path: "a.txt", content: "1" }),
+        toolUseResponse("write_file", { path: "b.txt", content: "2" }),
+        textResponse("done"),
+      ]),
+      model: "stub",
+      sandbox,
+      cancellationGate: { isCancelled: () => sandbox.exists("a.txt") },
+    });
+    expect(result.state).toBe("cancelled");
+    expect(await sandbox.exists("a.txt")).toBe(true); // step 1 ran
+    expect(await sandbox.exists("b.txt")).toBe(false); // step 2 was cancelled
+  } finally {
+    await sandbox.destroy();
+  }
+});
+
 test("mounts and records a required skill, then completes", async () => {
   const dir = await mkdtemp(join(tmpdir(), "auriga-jobskill-"));
   const sandbox = await emptySandbox();

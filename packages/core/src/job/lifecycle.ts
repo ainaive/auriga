@@ -4,7 +4,8 @@ import { ValidationError } from "../errors";
  * Job lifecycle states. A job moves:
  *   pending → planning → running → verifying → done | failed | paused
  * `verifying` can loop back to `running` when the verification gate fails and the
- * loop retries. `done` and `failed` are terminal.
+ * loop retries. `done`, `failed`, and `cancelled` are terminal. `cancelled` is
+ * reachable from any non-terminal state (cooperative, user-requested cancellation).
  */
 export const JOB_STATES = [
   "pending",
@@ -14,11 +15,12 @@ export const JOB_STATES = [
   "done",
   "failed",
   "paused",
+  "cancelled",
 ] as const;
 
 export type JobState = (typeof JOB_STATES)[number];
 
-export const TERMINAL_STATES: readonly JobState[] = ["done", "failed"];
+export const TERMINAL_STATES: readonly JobState[] = ["done", "failed", "cancelled"];
 
 export function isTerminal(state: JobState): boolean {
   return TERMINAL_STATES.includes(state);
@@ -26,13 +28,14 @@ export function isTerminal(state: JobState): boolean {
 
 /** Allowed forward transitions. The control plane (Habenae) enforces these. */
 const TRANSITIONS: Record<JobState, readonly JobState[]> = {
-  pending: ["planning", "failed"],
-  planning: ["running", "paused", "failed"],
-  running: ["verifying", "paused", "failed"],
-  verifying: ["done", "running", "paused", "failed"],
-  paused: ["planning", "running", "verifying", "failed"],
+  pending: ["planning", "failed", "cancelled"],
+  planning: ["running", "paused", "failed", "cancelled"],
+  running: ["verifying", "paused", "failed", "cancelled"],
+  verifying: ["done", "running", "paused", "failed", "cancelled"],
+  paused: ["planning", "running", "verifying", "failed", "cancelled"],
   done: [],
   failed: [],
+  cancelled: [],
 };
 
 export function canTransition(from: JobState, to: JobState): boolean {

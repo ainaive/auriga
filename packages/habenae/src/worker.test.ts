@@ -87,6 +87,22 @@ test("require_approval pauses the job until approved, then completes (HITL)", as
   expect((await store.get("job_hitl"))?.state).toBe("done");
 });
 
+test("a job with cancel_requested ends cancelled without running", async () => {
+  const store = new InMemoryJobStore();
+  await store.create(spec("job_cancel"));
+  await store.update("job_cancel", { cancel_requested: true });
+  const worker = new Worker({
+    store,
+    provider: new StubProvider([textResponse("should not run")]),
+    model: "stub",
+    sandboxDriver: new LocalSandboxDriver(),
+  });
+
+  const result = await worker.run("job_cancel");
+  expect(result.state).toBe("cancelled");
+  expect((await store.get("job_cancel"))?.state).toBe("cancelled");
+});
+
 test("resumes on a fresh worker after a crash, restoring workspace + transcript", async () => {
   const store = new InMemoryJobStore();
   await store.create(spec("job_resume"));

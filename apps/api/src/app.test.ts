@@ -1,6 +1,11 @@
 import { test, expect } from "bun:test";
 import type { JobSpec } from "@auriga/core";
-import { InMemoryAuditLog, InMemoryJobStore, InMemoryPolicy } from "@auriga/habenae";
+import {
+  InMemoryAuditLog,
+  InMemoryConfigStore,
+  InMemoryJobStore,
+  InMemoryPolicy,
+} from "@auriga/habenae";
 import { createApp } from "./app";
 
 function deps() {
@@ -112,6 +117,61 @@ test("skills endpoint returns [] without a marketplace", async () => {
   expect(await (await app.request("/skills")).json()).toEqual([]);
 });
 
+test("GET /config returns the config; PUT requires admin + validates + audits", async () => {
+  const d = deps();
+  const config = new InMemoryConfigStore();
+  const app = createApp({ ...d, config });
+
+  // open GET
+  const got = (await (await app.request("/config")).json()) as { quotas: { global: number } };
+  expect(got.quotas.global).toBe(2);
+
+  // non-admin → 403
+  const denied = await app.request("/config", {
+    method: "PUT",
+    headers: { "content-type": "application/json", ...AUTH }, // role "dev"
+    body: JSON.stringify(got),
+  });
+  expect(denied.status).toBe(403);
+
+  // admin → 200 + persisted + audited
+  const next = {
+    policies: [{ factio: "default", roles: ["admin"] }],
+    quotas: { global: 9, perFactio: 3 },
+  };
+  const ok = await app.request("/config", {
+    method: "PUT",
+    headers: {
+      "content-type": "application/json",
+      "x-auriga-factio": "default",
+      "x-auriga-role": "admin",
+    },
+    body: JSON.stringify(next),
+  });
+  expect(ok.status).toBe(200);
+  expect((await config.get()).quotas.global).toBe(9);
+
+  const audit = (await (await app.request("/audit")).json()) as Array<{ action: string }>;
+  expect(audit.map((e) => e.action)).toContain("config.updated");
+});
+
+test("PUT /config rejects an invalid shape (400) and 401 without auth", async () => {
+  const app = createApp({ ...deps(), config: new InMemoryConfigStore() });
+  const admin = { "x-auriga-factio": "default", "x-auriga-role": "admin" };
+  const bad = await app.request("/config", {
+    method: "PUT",
+    headers: { "content-type": "application/json", ...admin },
+    body: JSON.stringify({ policies: [], quotas: { global: 0, perFactio: 1 } }),
+  });
+  expect(bad.status).toBe(400);
+  expect((await app.request("/config", { method: "PUT", body: "{}" })).status).toBe(401);
+});
+
+test("GET /config is 501 when no config store is wired", async () => {
+  const app = createApp(deps());
+  expect((await app.request("/config")).status).toBe(501);
+});
+
 test("POST /jobs/:id/run accepts (202) and invokes the runner", async () => {
   const d = deps();
   const ran: string[] = [];
@@ -144,6 +204,50 @@ test("POST /jobs/:id/run is 409 when the job is already active", async () => {
   const res = await post(app, "/jobs/job_api/run", {}, AUTH);
   expect(res.status).toBe(409);
   expect(ran).toEqual([]); // not kicked
+});
+
+test("POST /jobs/:id/cancel: idle job → cancelled, active job → signalled", async () => {
+  const d = deps();
+  const app = createApp(d);
+  await d.store.create(spec);
+
+  // pending (idle) → marked cancelled immediately
+  const res = await post(app, "/jobs/job_api/cancel", {}, AUTH);
+  expect(res.status).toBe(200);
+  expect(await res.json()).toEqual({ cancelling: false, state: "cancelled" });
+  expect((await d.store.get("job_api"))?.state).toBe("cancelled");
+
+  // running (active) → cancel_requested set, state left for the runner to finalize
+  await d.store.create({ ...spec, id: "job_run" });
+  await d.store.update("job_run", { state: "running" });
+  const res2 = await post(app, "/jobs/job_run/cancel", {}, AUTH);
+  expect(res2.status).toBe(200);
+  expect(await res2.json()).toEqual({ cancelling: true, state: "running" });
+  const rec = await d.store.get("job_run");
+  expect(rec?.cancel_requested).toBe(true);
+  expect(rec?.state).toBe("running");
+
+  const audit = (await (await app.request("/audit")).json()) as Array<{ action: string }>;
+  expect(audit.map((e) => e.action)).toContain("job.cancel_requested");
+});
+
+test("POST /jobs/:id/cancel is 409 for a terminal job and 404 cross-tenant", async () => {
+  const d = deps();
+  const app = createApp(d);
+  await d.store.create(spec);
+  await d.store.update("job_api", { state: "done" });
+  expect((await post(app, "/jobs/job_api/cancel", {}, AUTH)).status).toBe(409);
+  expect(
+    (
+      await post(
+        app,
+        "/jobs/job_api/cancel",
+        {},
+        { "x-auriga-factio": "other", "x-auriga-role": "dev" },
+      )
+    ).status,
+  ).toBe(404);
+  expect((await post(app, "/jobs/job_api/cancel", {})).status).toBe(401);
 });
 
 test("POST /jobs/:id/run requires auth and 404s cross-tenant", async () => {

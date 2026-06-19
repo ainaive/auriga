@@ -27,6 +27,11 @@ export interface ApprovalGate {
   isApproved(): Promise<boolean>;
 }
 
+/** Cooperative cancellation: whether a cancel has been requested for this job. */
+export interface CancellationGate {
+  isCancelled(): Promise<boolean>;
+}
+
 export type JobEvent =
   | { type: "attempt"; attempt: number; steps: number; usage: Usage }
   | { type: "verify"; attempt: number; passed: boolean; evidence: string };
@@ -72,6 +77,8 @@ export interface RunJobOptions {
   onTrace?: (event: TraceEvent) => void;
   /** HITL gate consulted before execution when spec.require_approval is set. */
   approvalGate?: ApprovalGate;
+  /** Cooperative cancellation: polled between attempts and steps; true stops the run. */
+  cancellationGate?: CancellationGate;
   /** Resume from a prior checkpoint instead of starting fresh. */
   resume?: JobResumeState;
   /** Called after each verify so the worker can snapshot + persist a checkpoint. */
@@ -79,7 +86,7 @@ export interface RunJobOptions {
 }
 
 export interface RunJobResult {
-  state: "done" | "failed" | "paused";
+  state: "done" | "failed" | "paused" | "cancelled";
   reason: string;
   attempts: number;
   steps: number;
@@ -158,6 +165,9 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
   }
 
   for (let attempt = startAttempt; attempt <= maxAttempts; attempt++) {
+    // Cooperative cancellation: stop cleanly before starting another attempt.
+    if (await isCancelled()) return finish("cancelled", "cancellation requested", attempt - 1);
+
     const remainingSteps = spec.budget.max_steps - totalSteps;
     if (remainingSteps <= 0) {
       return finish("failed", "step budget exhausted");
@@ -180,6 +190,7 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
         await memory.appendScratchpad(`# context compacted: ${dropped.length} messages offloaded`);
       },
       ...(opts.onTrace ? { onTrace: opts.onTrace } : {}),
+      ...(opts.cancellationGate ? { onCancelled: isCancelled } : {}),
     });
 
     usage.input_tokens += loopRes.usage.input_tokens;
@@ -188,6 +199,9 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
     messages.splice(0, messages.length, ...loopRes.messages);
     flushSkillTrace(); // capture any model-invoked skill loads
     opts.onEvent?.({ type: "attempt", attempt, steps: loopRes.steps, usage: { ...usage } });
+
+    // The step loop stopped on a cancel signal — end the run without verifying.
+    if (loopRes.stop === "cancelled") return finish("cancelled", "cancellation requested", attempt);
 
     verification = await gate.verify(sandbox, spec.acceptance_criteria);
     const evidence = verification.results
@@ -218,6 +232,10 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
 
   return finish("failed", "verification did not pass within budget", maxAttempts);
 
+  function isCancelled(): Promise<boolean> {
+    return opts.cancellationGate ? opts.cancellationGate.isCancelled() : Promise.resolve(false);
+  }
+
   function flushSkillTrace(): void {
     if (!resolver || !opts.onTrace) return;
     for (const skill of resolver.loadedSkills()) {
@@ -241,7 +259,7 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
   }
 
   function finish(
-    state: "done" | "failed" | "paused",
+    state: "done" | "failed" | "paused" | "cancelled",
     reason: string,
     attempt = maxAttempts,
   ): RunJobResult {

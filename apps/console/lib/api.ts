@@ -2,16 +2,17 @@
 // is a thin read-side surface; it defines its own response types rather than
 // importing the Bun/server packages.
 
-export const BASE = process.env.NEXT_PUBLIC_AURIGA_API ?? "http://localhost:8787";
-const FACTIO = process.env.AURIGA_FACTIO ?? "default";
-const ROLE = process.env.AURIGA_ROLE ?? "viewer";
+import { getActor } from "./session";
 
-// Sent on tenant-scoped calls. Set server-side (never reaches the browser); the
-// write actions in lib/actions.ts reuse these so there's one source of truth.
-export const authHeaders: Record<string, string> = {
-  "x-auriga-factio": FACTIO,
-  "x-auriga-role": ROLE,
-};
+export const BASE = process.env.NEXT_PUBLIC_AURIGA_API ?? "http://localhost:8787";
+
+// Headers for tenant-scoped calls, derived from the session cookie (falling back to the
+// env identity). Built server-side per request; never reaches the browser. The write
+// actions in lib/actions.ts reuse this so there's one source of truth.
+export async function authHeaders(): Promise<Record<string, string>> {
+  const actor = await getActor();
+  return { "x-auriga-factio": actor.factio, "x-auriga-role": actor.role };
+}
 
 export interface Usage {
   input_tokens: number;
@@ -63,11 +64,23 @@ export interface Skill {
   stats: { uses: number; successes: number; total_cost_usd: number };
 }
 
+export interface FactioPolicy {
+  factio: string;
+  roles: string[];
+  allowed_tools?: string[];
+  allowed_skills?: string[];
+}
+
+export interface AurigaConfig {
+  policies: FactioPolicy[];
+  quotas: { global: number; perFactio: number };
+}
+
 async function get<T>(path: string, withAuth = false): Promise<T | null> {
   try {
     const res = await fetch(`${BASE}${path}`, {
       cache: "no-store",
-      headers: withAuth ? authHeaders : undefined,
+      headers: withAuth ? await authHeaders() : undefined,
     });
     if (!res.ok) return null;
     return (await res.json()) as T;
@@ -82,4 +95,5 @@ export const api = {
   job: (id: string) => get<Job>(`/jobs/${encodeURIComponent(id)}`, true),
   trace: (id: string) => get<Trace>(`/jobs/${encodeURIComponent(id)}/trace`, true),
   skills: () => get<Skill[]>("/skills"),
+  config: () => get<AurigaConfig>("/config"),
 };
