@@ -1,23 +1,44 @@
 "use client";
 
+import { Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { saveConfig } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
+import { Field, Label } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { saveConfig } from "@/lib/actions";
+import type { AurigaConfig } from "@/lib/api";
+import {
+  buildConfig,
+  configToForm,
+  emptyPolicy,
+  type ConfigFormState,
+  type PolicyDraft,
+} from "@/lib/config-form";
 
-/** Edit the control-plane config (policies + quotas) as JSON. Save needs an admin session. */
-export function ConfigForm({ initial }: { initial: string }) {
+/** Edit RBAC policies + scheduler quotas. Saving requires an admin session (PUT /config). */
+export function ConfigForm({ initial }: { initial: AurigaConfig }) {
   const router = useRouter();
-  const [text, setText] = useState(initial);
   const [pending, startTransition] = useTransition();
+  const [mode, setMode] = useState<"form" | "json">("form");
+  const [form, setForm] = useState<ConfigFormState>(() => configToForm(initial));
+  const [json, setJson] = useState(() => JSON.stringify(initial, null, 2));
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  function onSave() {
+  const setPolicy = (i: number, p: PolicyDraft) =>
+    setForm((f) => ({ ...f, policies: f.policies.map((x, j) => (j === i ? p : x)) }));
+  const addPolicy = () => setForm((f) => ({ ...f, policies: [...f.policies, emptyPolicy()] }));
+  const removePolicy = (i: number) =>
+    setForm((f) => ({ ...f, policies: f.policies.filter((_, j) => j !== i) }));
+
+  function save(payload: string) {
     setError(null);
     setSaved(false);
     startTransition(async () => {
-      const res = await saveConfig(text);
+      const res = await saveConfig(payload);
       if (res.ok) {
         setSaved(true);
         router.refresh();
@@ -27,24 +48,149 @@ export function ConfigForm({ initial }: { initial: string }) {
     });
   }
 
+  function onSaveForm() {
+    const { config, errors: errs } = buildConfig(form);
+    setErrors(errs);
+    if (!config) return;
+    save(JSON.stringify(config));
+  }
+
   return (
-    <div className="space-y-3">
-      <textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        spellCheck={false}
-        className="h-96 w-full rounded-lg border border-neutral-300 bg-white p-3 font-mono text-xs"
-      />
-      <div className="flex items-center gap-3">
-        <Button onClick={onSave} disabled={pending}>
-          {pending ? "Saving…" : "Save config"}
-        </Button>
-        {saved && <span className="text-sm text-green-700">Saved.</span>}
-        {error && <span className="text-sm text-red-600">{error}</span>}
+    <div className="space-y-4">
+      <div className="flex gap-1 text-sm">
+        <ModeTab active={mode === "form"} onClick={() => setMode("form")}>
+          Form
+        </ModeTab>
+        <ModeTab active={mode === "json"} onClick={() => setMode("json")}>
+          Raw JSON
+        </ModeTab>
       </div>
-      <p className="text-xs text-neutral-500">
-        Editing RBAC + quotas. Saving requires an <span className="font-medium">admin</span> session.
+
+      {mode === "json" ? (
+        <div className="space-y-3">
+          <Textarea
+            value={json}
+            onChange={(e) => setJson(e.target.value)}
+            spellCheck={false}
+            className="h-96 font-mono text-xs"
+          />
+          <Button onClick={() => save(json)} disabled={pending}>
+            {pending ? "Saving…" : "Save config"}
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-5">
+          <div>
+            <Label>Scheduler quotas</Label>
+            <div className="mt-1 grid gap-4 sm:grid-cols-2">
+              <Field label="Global concurrency" htmlFor="qg" error={errors.global}>
+                <Input id="qg" value={form.global} onChange={(e) => setForm((f) => ({ ...f, global: e.target.value }))} />
+              </Field>
+              <Field label="Per-tenant concurrency" htmlFor="qf" error={errors.perFactio}>
+                <Input id="qf" value={form.perFactio} onChange={(e) => setForm((f) => ({ ...f, perFactio: e.target.value }))} />
+              </Field>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>RBAC policies (per factio)</Label>
+              <Button type="button" variant="ghost" size="sm" onClick={addPolicy}>
+                <Plus /> Add policy
+              </Button>
+            </div>
+            {form.policies.length === 0 && (
+              <p className="text-xs text-muted-foreground">No policies — add one to allow submissions.</p>
+            )}
+            <div className="space-y-3">
+              {form.policies.map((p, i) => (
+                <PolicyRow
+                  // biome-ignore lint/suspicious/noArrayIndexKey: positional draft rows
+                  key={i}
+                  policy={p}
+                  error={errors[`policy.${i}`]}
+                  onChange={(next) => setPolicy(i, next)}
+                  onRemove={() => removePolicy(i)}
+                />
+              ))}
+            </div>
+          </div>
+
+          <Button onClick={onSaveForm} disabled={pending}>
+            {pending ? "Saving…" : "Save config"}
+          </Button>
+        </div>
+      )}
+
+      <div className="flex items-center gap-3">
+        {saved && <span className="text-sm text-emerald-600 dark:text-emerald-400">Saved.</span>}
+        {error && <span className="text-sm text-destructive">{error}</span>}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Editing RBAC + quotas. Saving requires an <span className="font-medium">admin</span> session;
+        edits take effect without a restart.
       </p>
+    </div>
+  );
+}
+
+function ModeTab({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        active
+          ? "rounded-md bg-secondary px-2.5 py-1 font-medium text-secondary-foreground"
+          : "rounded-md px-2.5 py-1 text-muted-foreground hover:text-foreground"
+      }
+    >
+      {children}
+    </button>
+  );
+}
+
+function PolicyRow({
+  policy,
+  error,
+  onChange,
+  onRemove,
+}: {
+  policy: PolicyDraft;
+  error?: string;
+  onChange: (p: PolicyDraft) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="rounded-md border bg-muted/30 p-3">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Factio" hint="tenant id">
+          <Input value={policy.factio} onChange={(e) => onChange({ ...policy, factio: e.target.value })} />
+        </Field>
+        <Field label="Roles" hint="comma-separated; who may submit">
+          <Input value={policy.roles} onChange={(e) => onChange({ ...policy, roles: e.target.value })} />
+        </Field>
+        <Field label="Allowed tools" hint="optional; narrows the spec's tools">
+          <Input value={policy.allowedTools} onChange={(e) => onChange({ ...policy, allowedTools: e.target.value })} />
+        </Field>
+        <Field label="Allowed skills" hint="optional; narrows selectable skills">
+          <Input value={policy.allowedSkills} onChange={(e) => onChange({ ...policy, allowedSkills: e.target.value })} />
+        </Field>
+      </div>
+      <div className="mt-2 flex items-center gap-3">
+        <Button type="button" variant="ghost" size="sm" aria-label="remove policy" onClick={onRemove}>
+          <Trash2 /> Remove
+        </Button>
+        {error && <span className="text-xs text-destructive">{error}</span>}
+      </div>
     </div>
   );
 }
