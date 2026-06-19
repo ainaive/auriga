@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -55,4 +55,33 @@ test("parseConfig rejects an invalid shape", () => {
   expect(() =>
     parseConfig({ policies: [{ roles: [] }], quotas: { global: 1, perFactio: 1 } }),
   ).toThrow();
+});
+
+test("parseConfig rejects duplicate factio entries", () => {
+  expect(() =>
+    parseConfig({
+      policies: [
+        { factio: "a", roles: ["dev"] },
+        { factio: "a", roles: ["admin"] },
+      ],
+      quotas: { global: 1, perFactio: 1 },
+    }),
+  ).toThrow();
+});
+
+test("FileConfigStore.open throws on a present-but-invalid file (not a silent default)", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "auriga-cfg-bad-"));
+  try {
+    await writeFile(join(dir, "config.json"), "{ not valid json");
+    await expect(FileConfigStore.open(dir)).rejects.toThrow();
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("get()/current() return clones (callers can't mutate internal state)", async () => {
+  const store = new InMemoryConfigStore();
+  const got = await store.get();
+  got.quotas.global = 999;
+  expect((await store.get()).quotas.global).toBe(2); // unchanged
 });

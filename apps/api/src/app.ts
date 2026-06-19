@@ -145,6 +145,10 @@ export function createApp(deps: ApiDeps): Hono {
 
   // Cooperative cancellation. An active job is signalled (the runner stops at its next
   // checkpoint and finalizes `cancelled`); an idle job is marked `cancelled` directly.
+  // NOTE: read→check→update is not atomic. In the single-process dev runner the window is
+  // tiny and benign (the active branch only sets cancel_requested, which a finished job
+  // ignores). A production multi-worker deployment should make this a conditional UPDATE
+  // (e.g. `... where state not in (terminal)`), which the Postgres store can support.
   app.post("/jobs/:id/cancel", async (c) => {
     const actor = actorOf(c);
     if (!actor) return c.json({ error: "auth required" }, 401);

@@ -18,7 +18,12 @@ const FactioPolicySchema = z.object({
 });
 
 export const ConfigSchema = z.object({
-  policies: z.array(FactioPolicySchema),
+  policies: z
+    .array(FactioPolicySchema)
+    // forFactio resolves by `.find`, so duplicate factios would be silently ignored.
+    .refine((ps) => new Set(ps.map((p) => p.factio)).size === ps.length, {
+      message: "duplicate factio in policies",
+    }),
   quotas: z.object({
     global: z.number().int().positive(),
     perFactio: z.number().int().positive(),
@@ -54,10 +59,10 @@ export class InMemoryConfigStore implements ConfigStore {
     this.cache = parseConfig(initial);
   }
   async get(): Promise<AurigaConfig> {
-    return this.cache;
+    return structuredClone(this.cache);
   }
   current(): AurigaConfig {
-    return this.cache;
+    return structuredClone(this.cache);
   }
   async set(cfg: AurigaConfig): Promise<void> {
     this.cache = parseConfig(cfg);
@@ -74,23 +79,30 @@ export class FileConfigStore implements ConfigStore {
     this.cache = initial;
   }
 
-  /** Load the config file, falling back to (and not writing) DEFAULT_CONFIG when absent/invalid. */
+  /**
+   * Load the config file. A missing file (first run) starts from DEFAULT_CONFIG; a
+   * present-but-invalid/unreadable file throws, so a parse/permission error surfaces
+   * to the operator rather than silently resetting RBAC + quotas.
+   */
   static async open(dir: string): Promise<FileConfigStore> {
     const path = join(dir, "config.json");
-    let initial = DEFAULT_CONFIG;
+    let raw: string;
     try {
-      initial = parseConfig(JSON.parse(await readFile(path, "utf8")));
-    } catch {
-      // missing or invalid → start from the default (a later set() writes the file)
+      raw = await readFile(path, "utf8");
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+        return new FileConfigStore(path, DEFAULT_CONFIG);
+      }
+      throw err;
     }
-    return new FileConfigStore(path, initial);
+    return new FileConfigStore(path, parseConfig(JSON.parse(raw)));
   }
 
   async get(): Promise<AurigaConfig> {
-    return this.cache;
+    return structuredClone(this.cache);
   }
   current(): AurigaConfig {
-    return this.cache;
+    return structuredClone(this.cache);
   }
   async set(cfg: AurigaConfig): Promise<void> {
     const parsed = parseConfig(cfg);

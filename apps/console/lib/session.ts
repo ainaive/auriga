@@ -1,9 +1,10 @@
 import { cookies } from "next/headers";
 
 // A dev-grade console session: an HTTP-only cookie carrying the caller's factio + role.
-// This is NOT production auth — the API still trusts the headers the console sends, and a
-// real deployment sits behind an OIDC proxy. It just replaces the single env identity with
-// a switchable, per-browser session.
+// This is NOT a security boundary: the cookie is unsigned, and the API trusts the
+// x-auriga-* headers the console sends (production sits behind an OIDC proxy that sets
+// them). It just replaces the single env identity with a switchable, per-browser session.
+// getSession validates the SHAPE (not authenticity) and rejects malformed cookies.
 
 const COOKIE = "auriga_session";
 
