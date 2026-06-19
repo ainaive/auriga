@@ -12,6 +12,7 @@ export type CreateResult = { ok: true; id: string } | { ok: false; error: string
 export type ApproveResult = { ok: true } | { ok: false; error: string };
 export type RunResult = { ok: true } | { ok: false; error: string };
 export type CancelResult = { ok: true } | { ok: false; error: string };
+export type SaveConfigResult = { ok: true } | { ok: false; error: string };
 
 /** Read an `{ error }` body if present, else fall back to the HTTP status text. */
 async function errorOf(res: Response): Promise<string> {
@@ -82,6 +83,30 @@ export async function cancelJob(id: string): Promise<CancelResult> {
   if (!res.ok) return { ok: false, error: await errorOf(res) };
   revalidatePath(`/jobs/${id}`);
   revalidatePath("/jobs");
+  return { ok: true };
+}
+
+/** Save the control-plane config (policies + quotas). Requires an admin session (PUT /config). */
+export async function saveConfig(json: string): Promise<SaveConfigResult> {
+  let cfg: unknown;
+  try {
+    cfg = JSON.parse(json);
+  } catch {
+    return { ok: false, error: "config is not valid JSON" };
+  }
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}/config`, {
+      method: "PUT",
+      headers: { ...authHeaders, "content-type": "application/json" },
+      body: JSON.stringify(cfg),
+      cache: "no-store",
+    });
+  } catch {
+    return { ok: false, error: "API unreachable" };
+  }
+  if (!res.ok) return { ok: false, error: await errorOf(res) };
+  revalidatePath("/config");
   return { ok: true };
 }
 

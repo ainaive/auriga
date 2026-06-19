@@ -3,9 +3,11 @@ import type { Context } from "hono";
 import { isTerminal, parseJobSpec, PolicyError, type JobState } from "@auriga/core";
 import {
   buildDashboard,
+  parseConfig,
   safeAudit,
   submitJob,
   type AuditLog,
+  type ConfigStore,
   type JobStore,
   type Policy,
 } from "@auriga/habenae";
@@ -20,6 +22,8 @@ export interface ApiDeps {
   marketplace?: MarketplaceDeps;
   /** Optional background job runner. Absent (e.g. no ANTHROPIC_API_KEY) → POST /jobs/:id/run is 503. */
   runJob?: (jobId: string) => void;
+  /** Optional runtime config store (policies + quotas). Absent → /config is 501. */
+  config?: ConfigStore;
 }
 
 /** Job states for which a run is already in progress (a new run is rejected). */
@@ -163,6 +167,39 @@ export function createApp(deps: ApiDeps): Hono {
       job_id: id,
     });
     return c.json({ cancelling: active, state: active ? rec.state : "cancelled" });
+  });
+
+  // Runtime config: GET is an open governance view; PUT rewrites RBAC/quotas so it
+  // requires an authenticated `admin` (defense-in-depth on top of the proxy).
+  app.get("/config", async (c) => {
+    if (!deps.config) return c.json({ error: "config not available" }, 501);
+    return c.json(await deps.config.get());
+  });
+
+  app.put("/config", async (c) => {
+    if (!deps.config) return c.json({ error: "config not available" }, 501);
+    const actor = actorOf(c);
+    if (!actor) return c.json({ error: "auth required" }, 401);
+    if (actor.role !== "admin") return c.json({ error: "admin role required" }, 403);
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "invalid json" }, 400);
+    }
+    try {
+      const cfg = parseConfig(body);
+      await deps.config.set(cfg);
+      await safeAudit(deps.audit, {
+        factio: actor.factio,
+        actor: actor.role,
+        action: "config.updated",
+        job_id: null,
+      });
+      return c.json(cfg);
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : "invalid config" }, 400);
+    }
   });
 
   // Aggregate governance views + console (deployment gates these at the proxy).

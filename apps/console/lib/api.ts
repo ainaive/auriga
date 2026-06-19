@@ -63,6 +63,18 @@ export interface Skill {
   stats: { uses: number; successes: number; total_cost_usd: number };
 }
 
+export interface FactioPolicy {
+  factio: string;
+  roles: string[];
+  allowed_tools?: string[];
+  allowed_skills?: string[];
+}
+
+export interface AurigaConfig {
+  policies: FactioPolicy[];
+  quotas: { global: number; perFactio: number };
+}
+
 async function get<T>(path: string, withAuth = false): Promise<T | null> {
   try {
     const res = await fetch(`${BASE}${path}`, {
@@ -82,4 +94,5 @@ export const api = {
   job: (id: string) => get<Job>(`/jobs/${encodeURIComponent(id)}`, true),
   trace: (id: string) => get<Trace>(`/jobs/${encodeURIComponent(id)}/trace`, true),
   skills: () => get<Skill[]>("/skills"),
+  config: () => get<AurigaConfig>("/config"),
 };

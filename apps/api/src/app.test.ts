@@ -1,6 +1,11 @@
 import { test, expect } from "bun:test";
 import type { JobSpec } from "@auriga/core";
-import { InMemoryAuditLog, InMemoryJobStore, InMemoryPolicy } from "@auriga/habenae";
+import {
+  InMemoryAuditLog,
+  InMemoryConfigStore,
+  InMemoryJobStore,
+  InMemoryPolicy,
+} from "@auriga/habenae";
 import { createApp } from "./app";
 
 function deps() {
@@ -110,6 +115,61 @@ test("dashboard + console render", async () => {
 test("skills endpoint returns [] without a marketplace", async () => {
   const app = createApp(deps());
   expect(await (await app.request("/skills")).json()).toEqual([]);
+});
+
+test("GET /config returns the config; PUT requires admin + validates + audits", async () => {
+  const d = deps();
+  const config = new InMemoryConfigStore();
+  const app = createApp({ ...d, config });
+
+  // open GET
+  const got = (await (await app.request("/config")).json()) as { quotas: { global: number } };
+  expect(got.quotas.global).toBe(2);
+
+  // non-admin → 403
+  const denied = await app.request("/config", {
+    method: "PUT",
+    headers: { "content-type": "application/json", ...AUTH }, // role "dev"
+    body: JSON.stringify(got),
+  });
+  expect(denied.status).toBe(403);
+
+  // admin → 200 + persisted + audited
+  const next = {
+    policies: [{ factio: "default", roles: ["admin"] }],
+    quotas: { global: 9, perFactio: 3 },
+  };
+  const ok = await app.request("/config", {
+    method: "PUT",
+    headers: {
+      "content-type": "application/json",
+      "x-auriga-factio": "default",
+      "x-auriga-role": "admin",
+    },
+    body: JSON.stringify(next),
+  });
+  expect(ok.status).toBe(200);
+  expect((await config.get()).quotas.global).toBe(9);
+
+  const audit = (await (await app.request("/audit")).json()) as Array<{ action: string }>;
+  expect(audit.map((e) => e.action)).toContain("config.updated");
+});
+
+test("PUT /config rejects an invalid shape (400) and 401 without auth", async () => {
+  const app = createApp({ ...deps(), config: new InMemoryConfigStore() });
+  const admin = { "x-auriga-factio": "default", "x-auriga-role": "admin" };
+  const bad = await app.request("/config", {
+    method: "PUT",
+    headers: { "content-type": "application/json", ...admin },
+    body: JSON.stringify({ policies: [], quotas: { global: 0, perFactio: 1 } }),
+  });
+  expect(bad.status).toBe(400);
+  expect((await app.request("/config", { method: "PUT", body: "{}" })).status).toBe(401);
+});
+
+test("GET /config is 501 when no config store is wired", async () => {
+  const app = createApp(deps());
+  expect((await app.request("/config")).status).toBe(501);
 });
 
 test("POST /jobs/:id/run accepts (202) and invokes the runner", async () => {

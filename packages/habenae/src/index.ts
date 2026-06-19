@@ -45,6 +45,16 @@ export {
   type DashboardData,
   type TenantSummary,
 } from "./dashboard";
+export {
+  type AurigaConfig,
+  type ConfigStore,
+  InMemoryConfigStore,
+  FileConfigStore,
+  StoreBackedPolicy,
+  ConfigSchema,
+  parseConfig,
+  DEFAULT_CONFIG,
+} from "./config-store";
 export { PostgresJobStore, migrate, SCHEMA_SQL } from "./postgres-store";
 export { GraphileQueue, RUN_JOB_TASK } from "./graphile-queue";
 export { Worker, type WorkerOptions } from "./worker";
