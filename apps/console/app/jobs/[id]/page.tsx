@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardTitle } from "@/components/ui/card";
@@ -7,7 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const job = await api.job(id);
-  if (!job) return <p className="text-neutral-500">Job not found.</p>;
+  if (!job) notFound();
   const trace = await api.trace(id);
 
   return (

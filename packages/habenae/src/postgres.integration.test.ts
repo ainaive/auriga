@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import type { JobSpec, Trace } from "@auriga/core";
 import { Pool } from "pg";
 import { PostgresAuditLog } from "./audit";
@@ -29,6 +29,10 @@ describe.if(Boolean(DATABASE_URL))("Postgres integration", () => {
     pool = new Pool({ connectionString: DATABASE_URL });
     await migrate(pool);
     await PostgresAuditLog.migrate(pool);
+  });
+
+  // Reset per-test so outcomes don't depend on execution order.
+  beforeEach(async () => {
     await pool.query("truncate jobs, checkpoints, traces cascade");
     await pool.query("truncate audit_events");
   });

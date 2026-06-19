@@ -59,6 +59,26 @@ test("cross-tenant status is hidden", async () => {
   expect(reply.text).toBe("job not found: other");
 });
 
+test("approve enforces RBAC, not just tenant match", async () => {
+  const store = new InMemoryJobStore();
+  await store.create(JSON.parse(specJson("job_1")) as JobSpec);
+  // Same factio as the job, but role "guest" is not permitted by the policy.
+  const guestCtx: ChatContext = { store, policy, actor: { factio: "acme", role: "guest" } };
+  const reply = await handleCommand(parseCommand("approve job_1"), guestCtx);
+  expect(reply.text).toContain("denied:");
+  expect((await store.get("job_1"))?.approved).not.toBe(true);
+});
+
+test("dashboard is scoped to the caller's factio (no cross-tenant leak)", async () => {
+  const store = new InMemoryJobStore();
+  await store.create(JSON.parse(specJson("mine", "acme")) as JobSpec);
+  await store.create(JSON.parse(specJson("theirs1", "rival")) as JobSpec);
+  await store.create(JSON.parse(specJson("theirs2", "rival")) as JobSpec);
+  const reply = await run(store, "dashboard");
+  // Only acme's single job is counted; rival's two never appear.
+  expect(reply.text).toBe("acme: 1 jobs · ~$0.0000");
+});
+
 test("help lists the commands", async () => {
   const reply = await run(new InMemoryJobStore(), "help");
   expect(reply.text).toContain("list");

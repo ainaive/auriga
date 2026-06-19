@@ -57,6 +57,14 @@ export async function handleCommand(cmd: Command, ctx: ChatContext): Promise<Cha
     case "approve": {
       const rec = await ctx.store.get(cmd.id);
       if (!rec || rec.spec.factio !== ctx.actor.factio) return { text: `job not found: ${cmd.id}` };
+      // Same RBAC gate as submit: a tenant match isn't enough — the actor's role
+      // must be permitted in the factio, else any same-factio user could approve.
+      const fp = ctx.policy.forFactio(ctx.actor.factio);
+      if (!fp?.roles.includes(ctx.actor.role)) {
+        return {
+          text: `denied: role ${ctx.actor.role} is not permitted in factio ${ctx.actor.factio}`,
+        };
+      }
       await ctx.store.update(cmd.id, { approved: true });
       await safeAudit(ctx.audit, {
         factio: rec.spec.factio,
@@ -68,10 +76,11 @@ export async function handleCommand(cmd: Command, ctx: ChatContext): Promise<Cha
     }
 
     case "dashboard": {
-      const d = await buildDashboard({ store: ctx.store, audit: ctx.audit });
-      return {
-        text: `${d.totals.jobs} jobs · ${d.totals.tenants} tenants · ~$${d.totals.cost_usd.toFixed(4)}`,
-      };
+      // Scope to the caller's factio — this surface is tenant-isolated (unlike the
+      // admin HTTP dashboard), so don't leak org-wide job/tenant/cost aggregates.
+      const factio = ctx.actor.factio;
+      const d = await buildDashboard({ store: ctx.store, audit: ctx.audit }, { factio });
+      return { text: `${factio}: ${d.totals.jobs} jobs · ~$${d.totals.cost_usd.toFixed(4)}` };
     }
 
     case "submit": {

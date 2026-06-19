@@ -26,7 +26,7 @@ export default async function SkillsPage() {
             </THead>
             <TBody>
               {skills.map((s) => (
-                <TR key={s.name}>
+                <TR key={`${s.name}@${s.version}`}>
                   <TD>{s.name}</TD>
                   <TD>{s.version}</TD>
                   <TD>{s.stats.uses}</TD>

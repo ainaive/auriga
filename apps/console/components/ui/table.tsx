@@ -18,7 +18,11 @@ export function TR({ children }: { children: ReactNode }) {
 }
 
 export function TH({ children }: { children: ReactNode }) {
-  return <th className="px-3 py-2 font-medium">{children}</th>;
+  return (
+    <th scope="col" className="px-3 py-2 font-medium">
+      {children}
+    </th>
+  );
 }
 
 export function TD({ children, className }: { children: ReactNode; className?: string }) {

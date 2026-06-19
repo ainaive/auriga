@@ -21,12 +21,16 @@ function jobCost(job: JobRecord): number {
   return Number.isFinite(c) ? c : 0;
 }
 
-/** Aggregate the data a governance dashboard renders: per-tenant rollups + audit feed. */
+/**
+ * Aggregate the data a governance dashboard renders: per-tenant rollups + audit feed.
+ * Pass `opts.factio` to scope the rollup (and audit feed) to a single tenant; omit it
+ * for the org-wide admin view.
+ */
 export async function buildDashboard(
   deps: { store: JobStore; audit?: AuditLog },
-  opts: { recentLimit?: number } = {},
+  opts: { recentLimit?: number; factio?: string } = {},
 ): Promise<DashboardData> {
-  const jobs = await deps.store.list();
+  const jobs = opts.factio ? await deps.store.listByFactio(opts.factio) : await deps.store.list();
   const byFactio = new Map<string, TenantSummary>();
 
   let totalCost = 0;
@@ -45,7 +49,11 @@ export async function buildDashboard(
   }
 
   const tenants = [...byFactio.values()].sort((a, b) => a.factio.localeCompare(b.factio));
-  const recentAudit = deps.audit ? await deps.audit.list(opts.recentLimit ?? 20) : [];
+  const recentAudit = deps.audit
+    ? opts.factio
+      ? await deps.audit.listByFactio(opts.factio, opts.recentLimit ?? 20)
+      : await deps.audit.list(opts.recentLimit ?? 20)
+    : [];
 
   return {
     totals: { jobs: jobs.length, cost_usd: totalCost, tenants: tenants.length },

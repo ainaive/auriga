@@ -30,7 +30,10 @@ export default async function JobsPage() {
               {jobs.map((j) => (
                 <TR key={j.id}>
                   <TD>
-                    <Link className="text-blue-700 hover:underline" href={`/jobs/${j.id}`}>
+                    <Link
+                      className="text-blue-700 hover:underline"
+                      href={`/jobs/${encodeURIComponent(j.id)}`}
+                    >
                       {j.id}
                     </Link>
                   </TD>
