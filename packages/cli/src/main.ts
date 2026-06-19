@@ -4,12 +4,24 @@ import { join } from "node:path";
 import { parseJobSpec } from "@auriga/core";
 import { formatTrace, formatUsage } from "@auriga/capella";
 import { loadEvalCases, runEvals } from "@auriga/evals";
-import { FileJobStore, Scheduler, Worker, type JobRecord } from "@auriga/habenae";
+import {
+  buildDashboard,
+  FileAuditLog,
+  FileJobStore,
+  safeAudit,
+  Scheduler,
+  Worker,
+  type JobRecord,
+} from "@auriga/habenae";
 import { AnthropicProvider, MODELS } from "@auriga/provider";
 import { selectDriver, type SandboxDriver } from "@auriga/sandbox";
+import { openDevRegistry, searchSkills } from "@auriga/skill-registry";
 
 const STORE_DIR = process.env.AURIGA_HOME ?? join(process.cwd(), ".auriga", "jobs");
 const MODEL = process.env.AURIGA_MODEL ?? MODELS.sonnet;
+const ACTOR = process.env.USER ?? "cli";
+
+const auditLog = () => new FileAuditLog(STORE_DIR);
 
 async function main(): Promise<void> {
   const [cmd, ...rest] = process.argv.slice(2);
@@ -42,6 +54,15 @@ async function main(): Promise<void> {
     case "list":
       await list(store, rest);
       break;
+    case "audit":
+      await audit(rest);
+      break;
+    case "dashboard":
+      await dashboard(store);
+      break;
+    case "skills":
+      await skills(rest);
+      break;
     case "eval":
       await evalCmd(rest);
       break;
@@ -70,6 +91,7 @@ async function runWorker(store: FileJobStore, id: string, model: string): Promis
     provider: new AnthropicProvider(),
     model,
     sandboxDriver: driver,
+    audit: auditLog(),
     onEvent: (e) => {
       if (e.type === "verify") {
         console.log(`  attempt ${e.attempt}: verification ${e.passed ? "PASS" : "fail"}`);
@@ -123,6 +145,7 @@ async function create(store: FileJobStore, args: string[]): Promise<void> {
     return;
   }
   await store.create(spec);
+  await safeAudit(auditLog(), { factio: spec.factio, actor: ACTOR, action: "job.created", job_id: spec.id });
   console.log(`created ${spec.id} (pending) — run \`auriga schedule\` to execute`);
 }
 
@@ -169,6 +192,7 @@ async function approve(store: FileJobStore, args: string[]): Promise<void> {
   const rec = await requireJob(store, args[0]);
   if (!rec) return;
   await store.update(rec.id, { approved: true });
+  await safeAudit(auditLog(), { factio: rec.spec.factio, actor: ACTOR, action: "job.approved", job_id: rec.id });
   console.log(`approved ${rec.id} — run: auriga run ${rec.id}`);
 }
 
@@ -260,6 +284,60 @@ async function evalCmd(args: string[]): Promise<void> {
   if (summary.matched < summary.total) process.exitCode = 2;
 }
 
+async function audit(args: string[]): Promise<void> {
+  const factio = flagValue(args, "--factio");
+  if (args.includes("--factio") && !factio) {
+    console.error("usage: auriga audit --factio <factio>");
+    process.exitCode = 1;
+    return;
+  }
+  const log = auditLog();
+  const events = factio ? await log.listByFactio(factio, 50) : await log.list(50);
+  if (!events.length) {
+    console.log("(no audit events)");
+    return;
+  }
+  for (const e of events) {
+    console.log(`${e.ts}  [${e.factio}]  ${e.action}  ${e.job_id ?? ""}`);
+  }
+}
+
+async function dashboard(store: FileJobStore): Promise<void> {
+  const dash = await buildDashboard({ store, audit: auditLog() });
+  console.log(
+    `${dash.totals.jobs} jobs · ${dash.totals.tenants} tenants · ~$${dash.totals.cost_usd.toFixed(4)}`,
+  );
+  for (const t of dash.tenants) {
+    const states = Object.entries(t.byState)
+      .map(([k, v]) => `${k}:${v}`)
+      .join(" ");
+    console.log(`  [${t.factio}] ${t.total} jobs · ${states} · ~$${t.cost_usd.toFixed(4)}`);
+  }
+}
+
+async function skills(args: string[]): Promise<void> {
+  const skillsDir = process.env.AURIGA_SKILLS;
+  if (!skillsDir) {
+    console.error("set AURIGA_SKILLS to a skill registry directory");
+    process.exitCode = 1;
+    return;
+  }
+  const registry = await openDevRegistry(skillsDir);
+  const query = flagValue(args, "-q") ?? flagValue(args, "--query");
+  const entries = await searchSkills(
+    { registry, stats: registry },
+    { factio: "default", role: "viewer" },
+    query ? { query } : {},
+  );
+  if (!entries.length) {
+    console.log("(no skills)");
+    return;
+  }
+  for (const e of entries) {
+    console.log(`${e.name}@${e.version}  uses=${e.stats.uses} ok=${e.stats.successes}  ${e.description}`);
+  }
+}
+
 async function requireJob(store: FileJobStore, id: string | undefined): Promise<JobRecord | undefined> {
   if (!id) {
     console.error("usage: auriga <run|approve|status|result|trace> <id>");
@@ -288,10 +366,13 @@ usage:
   auriga result <id>          show a job's final result
   auriga trace <id>           print the recorded trace + cost
   auriga list [--factio F]    list all jobs (optionally one tenant)
+  auriga audit [--factio F]   show the governance audit trail
+  auriga dashboard            per-tenant job/cost rollup
+  auriga skills [-q query]    browse the skill marketplace (set AURIGA_SKILLS)
   auriga eval <suite-dir>     replay a suite of recorded traces and score them
 
 env: ANTHROPIC_API_KEY (required for submit/run/schedule), AURIGA_MODEL, AURIGA_HOME,
-     AURIGA_REQUIRE_DOCKER=1 (require an isolated sandbox)`);
+     AURIGA_SKILLS (registry dir), AURIGA_REQUIRE_DOCKER=1 (require an isolated sandbox)`);
 }
 
 await main().catch((err) => {

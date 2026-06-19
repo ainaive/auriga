@@ -11,6 +11,9 @@ import { InMemoryJobStore } from "./memory-store";
 import { Worker } from "./worker";
 
 const EXAMPLE_SKILL_DIR = fileURLToPath(new URL("../../../skills/fix-failing-test", import.meta.url));
+// An empty workspace dir — never "/tmp" (the Worker copies the workspace, and
+// copying the system /tmp tree hangs on CI runners).
+const EMPTY_WS = await mkdtemp(join(tmpdir(), "auriga-ws-"));
 
 function spec(id: string): JobSpec {
   return {
@@ -18,7 +21,7 @@ function spec(id: string): JobSpec {
     factio: "default",
     created_by: "t",
     goal: "create answer.txt",
-    context_refs: { workspace: { kind: "dir", url_or_path: "/tmp" } },
+    context_refs: { workspace: { kind: "dir", url_or_path: EMPTY_WS } },
     allowed_tools: ["write_file"],
     required_skills: ["fix-failing-test"],
     acceptance_criteria: [{ kind: "file_exists", path: "answer.txt" }],
@@ -26,8 +29,10 @@ function spec(id: string): JobSpec {
   };
 }
 
-test("the worker feeds per-skill usage back to the registry after a run", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "auriga-feedback-"));
+test(
+  "the worker feeds per-skill usage back to the registry after a run",
+  async () => {
+    const dir = await mkdtemp(join(tmpdir(), "auriga-feedback-"));
   const store = new InMemoryJobStore();
   await store.create(spec("job_fb"));
   try {
@@ -50,7 +55,9 @@ test("the worker feeds per-skill usage back to the registry after a run", async 
     const stats = await registry.stats("fix-failing-test");
     expect(stats.uses).toBe(1);
     expect(stats.successes).toBe(1);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  },
+  30_000,
+);

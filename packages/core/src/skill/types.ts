@@ -117,3 +117,8 @@ export interface SkillStats {
 export interface SkillUsageSink {
   recordUsage(name: string, version: string, usage: SkillUsage): Promise<void>;
 }
+
+/** Read side of usage stats (marketplace ranking, governance). */
+export interface SkillStatsSource {
+  stats(name: string): Promise<SkillStats>;
+}

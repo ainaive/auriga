@@ -12,7 +12,6 @@ import type {
 
 const DEFAULT_IMAGE = "oven/bun:1";
 const WORKDIR = "/workspace";
-const SKILLS_DIR = "/skills";
 /** Cap for reads that treat stdout as full file content; fail closed past this. */
 const FILE_READ_CAP = 64_000_000;
 
@@ -102,9 +101,11 @@ class DockerSandbox implements Sandbox {
   }
 
   async mountSkill(name: string, files: Record<string, Uint8Array>): Promise<string> {
-    const base = `${SKILLS_DIR}/${name}`;
+    // Mount UNDER the workspace (relative) so readFile's containment guard can
+    // reach the files — consistent with LocalSandbox (.skills/<name>).
+    const rel = `.skills/${name}`;
     for (const [path, bytes] of Object.entries(files)) {
-      const full = containerPath(base, path);
+      const full = containerPath(WORKDIR, `${rel}/${path}`);
       const b64 = Buffer.from(bytes).toString("base64");
       const r = await this.docker(
         ["exec", "-i", this.containerId, "sh", "-c", `mkdir -p "$(dirname ${shq(full)})" && base64 -d > ${shq(full)}`],
@@ -112,7 +113,7 @@ class DockerSandbox implements Sandbox {
       );
       assertOk(`mountSkill ${full}`, r);
     }
-    return base;
+    return rel;
   }
 
   async snapshot(): Promise<SandboxSnapshot> {

@@ -1,4 +1,5 @@
 import { PolicyError, type JobSpec } from "@auriga/core";
+import { safeAudit, type AuditLog } from "./audit";
 import type { JobRecord, JobStore } from "./types";
 
 /** Per-tenant access rules (RBAC). */
@@ -37,6 +38,8 @@ export interface SubmitOptions {
   policy: Policy;
   spec: JobSpec;
   actor: Actor;
+  /** Optional audit trail for job.created / policy.denied. */
+  audit?: AuditLog;
 }
 
 function intersect(a: readonly string[], b: readonly string[]): string[] {
@@ -51,48 +54,63 @@ function intersect(a: readonly string[], b: readonly string[]): string[] {
  * skills that fall outside it). The skill resolver re-checks at resolution time.
  */
 export async function submitJob(opts: SubmitOptions): Promise<JobRecord> {
-  const { store, policy, spec, actor } = opts;
-
-  if (actor.factio !== spec.factio) {
-    throw new PolicyError(`actor in factio ${actor.factio} cannot submit to ${spec.factio}`);
-  }
-  const fp = policy.forFactio(spec.factio);
-  if (!fp) throw new PolicyError(`unknown factio: ${spec.factio}`);
-  if (!fp.roles.includes(actor.role)) {
-    throw new PolicyError(`role ${actor.role} is not permitted in factio ${spec.factio}`);
-  }
-
-  // Dependencies must stay within the tenant — a cross-tenant dep would gate this
-  // job on another factio's state (and leak its lifecycle across the boundary).
-  for (const depId of spec.depends_on ?? []) {
-    const dep = await store.get(depId);
-    if (dep && dep.spec.factio !== spec.factio) {
-      throw new PolicyError(
-        `dependency ${depId} belongs to factio ${dep.spec.factio}, not ${spec.factio}`,
-      );
+  const { store, policy, spec, actor, audit } = opts;
+  try {
+    if (actor.factio !== spec.factio) {
+      throw new PolicyError(`actor in factio ${actor.factio} cannot submit to ${spec.factio}`);
     }
-  }
-
-  if (fp.allowed_tools) {
-    const disallowed = spec.allowed_tools.filter((t) => !fp.allowed_tools!.includes(t));
-    if (disallowed.length > 0) {
-      throw new PolicyError(`tools not permitted in ${spec.factio}: ${disallowed.join(", ")}`);
+    const fp = policy.forFactio(spec.factio);
+    if (!fp) throw new PolicyError(`unknown factio: ${spec.factio}`);
+    if (!fp.roles.includes(actor.role)) {
+      throw new PolicyError(`role ${actor.role} is not permitted in factio ${spec.factio}`);
     }
-  }
 
-  let effective = spec;
-  if (fp.allowed_skills) {
-    const permitted = fp.allowed_skills;
-    for (const required of spec.required_skills ?? []) {
-      if (!permitted.includes(required)) {
-        throw new PolicyError(`required skill not permitted in ${spec.factio}: ${required}`);
+    // Dependencies must stay within the tenant — a cross-tenant dep would gate this
+    // job on another factio's state (and leak its lifecycle across the boundary).
+    for (const depId of spec.depends_on ?? []) {
+      const dep = await store.get(depId);
+      if (dep && dep.spec.factio !== spec.factio) {
+        throw new PolicyError(
+          `dependency ${depId} belongs to factio ${dep.spec.factio}, not ${spec.factio}`,
+        );
       }
     }
-    effective = {
-      ...spec,
-      allowed_skills: intersect(spec.allowed_skills ?? permitted, permitted),
-    };
-  }
 
-  return store.create(effective);
+    if (fp.allowed_tools) {
+      const disallowed = spec.allowed_tools.filter((t) => !fp.allowed_tools!.includes(t));
+      if (disallowed.length > 0) {
+        throw new PolicyError(`tools not permitted in ${spec.factio}: ${disallowed.join(", ")}`);
+      }
+    }
+
+    let effective = spec;
+    if (fp.allowed_skills) {
+      const permitted = fp.allowed_skills;
+      for (const required of spec.required_skills ?? []) {
+        if (!permitted.includes(required)) {
+          throw new PolicyError(`required skill not permitted in ${spec.factio}: ${required}`);
+        }
+      }
+      effective = {
+        ...spec,
+        allowed_skills: intersect(spec.allowed_skills ?? permitted, permitted),
+      };
+    }
+
+    const record = await store.create(effective);
+    await safeAudit(audit, { factio: spec.factio, actor: actor.role, action: "job.created", job_id: spec.id });
+    return record;
+  } catch (err) {
+    if (err instanceof PolicyError) {
+      // best-effort: never let an audit failure mask the original PolicyError
+      await safeAudit(audit, {
+        factio: spec.factio,
+        actor: actor.role,
+        action: "policy.denied",
+        job_id: spec.id,
+        detail: err.message,
+      });
+    }
+    throw err;
+  }
 }

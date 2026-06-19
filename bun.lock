@@ -14,6 +14,16 @@
         "typescript": "^5.7.0",
       },
     },
+    "apps/api": {
+      "name": "@auriga/api",
+      "version": "0.0.0",
+      "dependencies": {
+        "@auriga/core": "workspace:*",
+        "@auriga/habenae": "workspace:*",
+        "@auriga/skill-registry": "workspace:*",
+        "hono": "^4.6.0",
+      },
+    },
     "packages/capella": {
       "name": "@auriga/capella",
       "version": "0.0.0",
@@ -38,6 +48,7 @@
         "@auriga/habenae": "workspace:*",
         "@auriga/provider": "workspace:*",
         "@auriga/sandbox": "workspace:*",
+        "@auriga/skill-registry": "workspace:*",
       },
     },
     "packages/core": {
@@ -113,6 +124,8 @@
   },
   "packages": {
     "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.104.2", "", { "dependencies": { "json-schema-to-ts": "^3.1.1", "standardwebhooks": "^1.0.0" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-s1wEVDAtEwkS7Ajgep6PZKJLFqybRkmD3Byz+iVVsSpbDY0gjROXE9aOft6V3PMqynn3NTcycV5whga9tCzmKA=="],
+
+    "@auriga/api": ["@auriga/api@workspace:apps/api"],
 
     "@auriga/capella": ["@auriga/capella@workspace:packages/capella"],
 
@@ -281,6 +294,8 @@
     "graphile-worker": ["graphile-worker@0.17.2", "", { "dependencies": { "@graphile/logger": "^0.2.0", "@types/debug": "^4.1.10", "@types/pg": "^8.10.5", "cosmiconfig": "^8.3.6", "graphile-config": "^0.0.1-beta.16", "json5": "^2.2.3", "pg": "^8.11.3", "tslib": "^2.6.2", "yargs": "^17.7.2" }, "bin": { "graphile-worker": "dist/cli.js" } }, "sha512-zRM6797XNltD9+b0W7R49b5tcYEtlJmVembygjnvyc3kgo+qu4GURLUaFYg8gclxgRNETw0eByuUx+7N3IWyNg=="],
 
     "has-flag": ["has-flag@4.0.0", "", {}, "sha512-EykJT/Q1KjTWctppgIAgfSO0tKVuZUjhgMr17kqTumMl6Afv3EISleU7qZUzoXDFTAHTDC4NOoG/ZxU3EvlMPQ=="],
+
+    "hono": ["hono@4.12.26", "", {}, "sha512-uyZtpnYxM9CmQ7QsQknM4zN8EftNqhON1qYeIKM0Se67CCEe2c44xyGURwB0axX2fBDu1dqHrHAc1hmNT8ITkw=="],
 
     "import-fresh": ["import-fresh@3.3.1", "", { "dependencies": { "parent-module": "^1.0.0", "resolve-from": "^4.0.0" } }, "sha512-TR3KfrTZTYLPB6jUjfx6MF9WcWrHL9su5TObK4ZkYgBdWKPOFoSoQIdEuTuR82pmtxH2spWG9h6etwfr1pLBqQ=="],
 

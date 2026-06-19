@@ -1,0 +1,16 @@
+{
+  "name": "@auriga/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "start": "bun src/index.ts"
+  },
+  "dependencies": {
+    "@auriga/core": "workspace:*",
+    "@auriga/habenae": "workspace:*",
+    "@auriga/skill-registry": "workspace:*",
+    "hono": "^4.6.0"
+  }
+}

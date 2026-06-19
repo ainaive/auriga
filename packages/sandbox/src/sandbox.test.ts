@@ -106,12 +106,16 @@ describe("LocalSandbox", () => {
   });
 });
 
-const dockerAvailable = await new DockerSandboxDriver().isAvailable();
+// Docker integration tests are heavy (image pull + containers) and contend with
+// the rest of the suite on CI runners, so they're opt-in: set AURIGA_DOCKER_TESTS=1
+// (with Docker available) to run them.
+const runDocker =
+  process.env.AURIGA_DOCKER_TESTS === "1" && (await new DockerSandboxDriver().isAvailable());
 
-describe.if(dockerAvailable)("DockerSandbox (docker present)", () => {
+describe.if(runDocker)("DockerSandbox (AURIGA_DOCKER_TESTS=1)", () => {
   sandboxContract(() => new DockerSandboxDriver());
 });
 
-if (!dockerAvailable) {
-  test.skip("DockerSandbox (docker not installed — skipped)", () => {});
+if (!runDocker) {
+  test.skip("DockerSandbox (opt-in via AURIGA_DOCKER_TESTS=1)", () => {});
 }

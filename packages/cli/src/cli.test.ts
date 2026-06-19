@@ -17,9 +17,9 @@ const SAMPLE_SPEC = {
   budget: { max_tokens: 1000, max_wall_time_s: 60, max_cost_usd: 1, max_steps: 10 },
 };
 
-async function runCli(args: string[], home: string) {
+async function runCli(args: string[], home: string, extraEnv: Record<string, string> = {}) {
   const proc = Bun.spawn(["bun", MAIN, ...args], {
-    env: { ...process.env, AURIGA_HOME: home },
+    env: { ...process.env, AURIGA_HOME: home, ...extraEnv },
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -116,6 +116,38 @@ test("schedule on an empty store reports no pending jobs", async () => {
     const r = await runCli(["schedule"], home);
     expect(r.code).toBe(0);
     expect(r.stdout).toContain("no pending jobs");
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("audit and dashboard reflect a created job", async () => {
+  const home = await mkdtemp(join(tmpdir(), "auriga-cli-"));
+  const specDir = await mkdtemp(join(tmpdir(), "auriga-spec-"));
+  const specFile = join(specDir, "spec.json");
+  try {
+    await writeFile(specFile, JSON.stringify(SAMPLE_SPEC));
+    await runCli(["create", specFile], home);
+
+    const audit = await runCli(["audit"], home);
+    expect(audit.stdout).toContain("job.created");
+    expect(audit.stdout).toContain("[acme]");
+
+    const dash = await runCli(["dashboard"], home);
+    expect(dash.stdout).toContain("1 jobs");
+    expect(dash.stdout).toContain("[acme]");
+  } finally {
+    await rm(home, { recursive: true, force: true });
+    await rm(specDir, { recursive: true, force: true });
+  }
+});
+
+test("skills without AURIGA_SKILLS exits non-zero", async () => {
+  const home = await mkdtemp(join(tmpdir(), "auriga-cli-"));
+  try {
+    const r = await runCli(["skills"], home, { AURIGA_SKILLS: "" }); // ensure unset/empty
+    expect(r.code).toBe(1);
+    expect(r.stderr).toContain("AURIGA_SKILLS");
   } finally {
     await rm(home, { recursive: true, force: true });
   }

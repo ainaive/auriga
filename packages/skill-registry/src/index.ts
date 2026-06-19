@@ -5,3 +5,4 @@
  */
 export { LocalSkillRegistry, openDevRegistry } from "./local-registry";
 export { loadBundleFromDir, type SkillBundleInput, type SkillBundleFile } from "./bundle";
+export { searchSkills, type MarketplaceEntry, type MarketplaceDeps } from "./marketplace";

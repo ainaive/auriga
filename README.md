@@ -64,6 +64,7 @@ Under active construction — see `~/.claude/plans/auriga-implementation-starry-
 - **Phase 1 — minimum viable harness:** ✅ done. One job type ("fix a failing test → green") runs end to end: submit a spec → Plan-Execute-Verify loop in an isolated sandbox with allowlisted tools → a skill loaded via the full seam (progressive disclosure → fetch → signature-verify → mount) → verification gate runs the acceptance command → `done` only on pass; checkpoint/resume on a fresh worker; token + cost recorded.
 - **Phase 2 — evals + observability:** ✅ done. Every run records a structured **trace** (model calls, tool calls, skill versions, compaction, verify) persisted to the store; **OpenTelemetry** spans per step (register an exporter to ship to Jaeger/Tempo); a **replay** provider re-runs a trace deterministically and an **eval runner** scores a batch of traces against acceptance criteria; cost is rolled up per run; a **HITL approval gate** pauses jobs that declare `require_approval` until approved.
 - **Phase 3 — control plane + governance + multi-tenant:** ✅ done. A **scheduler** drains jobs respecting global + **per-tenant (factio) concurrency quotas** and a job **dependency DAG**; failed jobs are **retried** with backoff; **model routing** (the "reasoning sandwich" — strong model plans, fast model executes) is selected per job; an **RBAC policy gate** governs who may submit and which tools/skills are permitted (tenant-isolated); and a **skill usage feedback loop** records per-skill success/cost back to the registry. `auriga create`/`schedule` and `list --factio` expose it.
+- **Phase 4 — scale & governance:** ✅ (backend). An append-only **audit log** records every governed action; a **Hono HTTP API** (`apps/api`) exposes the control plane (jobs, governed submit/approve, dashboard, audit, skill marketplace) and serves a **minimal console**; **backend-agnostic provider routing** picks a provider/model per job (cost-aware: low-budget jobs run on a cheaper backend); a **skill marketplace** ranks skills by adoption; a **governance dashboard** rolls up per-tenant jobs/cost; **GitHub Actions CI** runs the gate on every PR. `auriga audit`/`dashboard`/`skills` expose it. *Remaining:* the richer **Next.js + shadcn console** (`apps/console`) and ChatOps (Slack).
 
 ### Try it
 
@@ -102,3 +103,9 @@ auriga submit job.json
 
 Without Docker, the CLI falls back to the non-isolated Local sandbox (with a warning);
 set `AURIGA_REQUIRE_DOCKER=1` to require real isolation.
+
+Run the control-plane API + console:
+
+```bash
+AURIGA_HOME=.auriga/jobs bun apps/api/src/index.ts   # http://localhost:8787 (console at /)
+```
