@@ -13,6 +13,8 @@ export interface JobRecord {
   approved: boolean;
   /** Cooperative cancellation requested; the runner stops at the next checkpoint. */
   cancel_requested: boolean;
+  /** Cooperative pause requested; the runner stops (resumably) at the next attempt boundary. */
+  pause_requested: boolean;
   /** Number of control-plane retries already consumed. */
   retries: number;
   usage: Usage;

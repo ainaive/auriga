@@ -139,6 +139,36 @@ test("a job with cancel_requested ends cancelled without running", async () => {
   expect((await store.get("job_cancel"))?.state).toBe("cancelled");
 });
 
+test("a pause_requested job stops resumably, then resumes to done", async () => {
+  const store = new InMemoryJobStore();
+  await store.create(spec("job_pause"));
+  await store.update("job_pause", { pause_requested: true });
+
+  // Paused at the attempt boundary before doing any work — the stub is not consumed.
+  const first = await new Worker({
+    store,
+    provider: new StubProvider([textResponse("should not run while paused")]),
+    model: "stub",
+    sandboxDriver: new LocalSandboxDriver(),
+  }).run("job_pause");
+  expect(first.state).toBe("paused");
+  expect((await store.get("job_pause"))?.state).toBe("paused");
+
+  // Resume: clear the pause signal, run a fresh worker → completes.
+  await store.update("job_pause", { pause_requested: false });
+  const second = await new Worker({
+    store,
+    provider: new StubProvider([
+      toolUseResponse("write_file", { path: "answer.txt", content: "x" }),
+      textResponse("done"),
+    ]),
+    model: "stub",
+    sandboxDriver: new LocalSandboxDriver(),
+  }).run("job_pause");
+  expect(second.state).toBe("done");
+  expect((await store.get("job_pause"))?.state).toBe("done");
+});
+
 test("resumes on a fresh worker after a crash, restoring workspace + transcript", async () => {
   const store = new InMemoryJobStore();
   await store.create(spec("job_resume"));

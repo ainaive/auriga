@@ -45,6 +45,7 @@ x-auriga-role:   <role>
 | `POST` | `/jobs` | tenant | Create a **pending** job (body `{ spec }`) through the RBAC gate | `201`, `400`, `401`, `403` |
 | `POST` | `/jobs/:id/approve` | tenant | Approve a paused job (HITL); audited | `200`, `401`, `404` |
 | `POST` | `/jobs/:id/run` | tenant | Kick a runnable job to the background runner (202) | `202`, `401`, `404`, `409`, `503` |
+| `POST` | `/jobs/:id/pause` | tenant | Cooperative **pause** of an active run (resumable; `/run` resumes) | `200`, `401`, `404`, `409` |
 | `POST` | `/jobs/:id/cancel` | tenant | Cooperative cancellation (signals an active run, marks an idle one) | `200`, `401`, `404`, `409` |
 | `GET` | `/config` | open | Current RBAC policies + quotas | `200`, `501` |
 | `PUT` | `/config` | admin | Replace policies + quotas (admin role); validated + audited | `200`, `400`, `401`, `403`, `501` |

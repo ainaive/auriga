@@ -3,11 +3,12 @@ import { api } from "@/lib/api";
 import { ApproveButton } from "@/components/approve-button";
 import { CancelButton } from "@/components/cancel-button";
 import { LiveRun } from "@/components/live-run";
+import { PauseButton } from "@/components/pause-button";
 import { RunButton } from "@/components/run-button";
 import { RunTimeline } from "@/components/run-timeline";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardTitle } from "@/components/ui/card";
-import { TERMINAL_STATES } from "@/lib/types";
+import { ACTIVE_STATES, TERMINAL_STATES } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -17,12 +18,15 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
   if (!job) notFound();
   const trace = await api.trace(id);
 
-  const active = ["planning", "running", "verifying"].includes(job.state);
+  const active = ACTIVE_STATES.includes(job.state);
   const terminal = TERMINAL_STATES.includes(job.state);
-  const needsApproval = job.state === "paused" && !job.approved;
-  // Runnable: not currently active, not done, and not waiting on approval (failed/cancelled re-run ok).
+  // "Live" states stream; resting states (paused/terminal) render the sealed trace.
+  const live = active || job.state === "pending";
+  const needsApproval = job.state === "paused" && !!job.spec.require_approval && !job.approved;
+  const resumable = job.state === "paused" && !needsApproval;
+  // Runnable: not active, not done, not awaiting approval (pending/failed/cancelled re-run; paused resume).
   const runnable = !active && job.state !== "done" && !needsApproval;
-  const cancellable = !terminal; // pending / planning / running / verifying / paused
+  const cancellable = !terminal;
   const tokens = job.usage.input_tokens + job.usage.output_tokens;
 
   return (
@@ -42,16 +46,15 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           {needsApproval && <ApproveButton id={job.id} />}
-          {runnable && <RunButton id={job.id} />}
+          {runnable && <RunButton id={job.id} label={resumable ? "Resume" : "Run"} />}
+          {active && <PauseButton id={job.id} />}
           {cancellable && <CancelButton id={job.id} />}
         </div>
       </Card>
 
       <Card>
-        <CardTitle>{terminal ? "Trace" : "Live run"}</CardTitle>
-        {terminal ? (
-          <RunTimeline events={trace?.events ?? []} />
-        ) : (
+        <CardTitle>{live ? "Live run" : "Trace"}</CardTitle>
+        {live ? (
           <LiveRun
             jobId={job.id}
             seed={{
@@ -60,9 +63,10 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
               attempt: job.attempts,
               steps: job.steps,
               usage: job.usage,
-              trace: trace?.events ?? [],
             }}
           />
+        ) : (
+          <RunTimeline events={trace?.events ?? []} />
         )}
       </Card>
     </div>

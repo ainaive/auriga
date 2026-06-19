@@ -157,6 +157,9 @@ export class Worker {
         cancellationGate: {
           isCancelled: async () => (await store.get(jobId))?.cancel_requested ?? false,
         },
+        pauseGate: {
+          isPaused: async () => (await store.get(jobId))?.pause_requested ?? false,
+        },
         ...(this.opts.registry ? { registry: this.opts.registry } : {}),
         ...(this.opts.trustedKeys ? { trustedKeys: this.opts.trustedKeys } : {}),
         ...(this.opts.role ? { role: this.opts.role } : {}),

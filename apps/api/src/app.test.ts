@@ -324,6 +324,48 @@ test("GET /jobs/:id/events: 401 without auth, 404 cross-tenant, 501 without a bu
   expect((await noBus.request("/jobs/job_api/events", { headers: AUTH })).status).toBe(501);
 });
 
+test("POST /jobs/:id/pause signals an active job, 409s an idle one; run clears it", async () => {
+  const d = deps();
+  const app = createApp({ ...d, runJob: () => {} });
+  await d.store.create(spec);
+
+  // idle (pending) → 409
+  expect((await post(app, "/jobs/job_api/pause", {}, AUTH)).status).toBe(409);
+
+  // active → pause_requested set
+  await d.store.update("job_api", { state: "running" });
+  const res = await post(app, "/jobs/job_api/pause", {}, AUTH);
+  expect(res.status).toBe(200);
+  expect(await res.json()).toEqual({ pausing: true });
+  expect((await d.store.get("job_api"))?.pause_requested).toBe(true);
+
+  // resume via /run clears the pause signal
+  await d.store.update("job_api", { state: "paused" });
+  expect((await post(app, "/jobs/job_api/run", {}, AUTH)).status).toBe(202);
+  expect((await d.store.get("job_api"))?.pause_requested).toBe(false);
+
+  const audit = (await (await app.request("/audit")).json()) as Array<{ action: string }>;
+  expect(audit.map((e) => e.action)).toContain("job.pause_requested");
+});
+
+test("POST /jobs/:id/pause requires auth and 404s cross-tenant", async () => {
+  const d = deps();
+  const app = createApp(d);
+  await d.store.create(spec);
+  await d.store.update("job_api", { state: "running" });
+  expect((await post(app, "/jobs/job_api/pause", {})).status).toBe(401);
+  expect(
+    (
+      await post(
+        app,
+        "/jobs/job_api/pause",
+        {},
+        { "x-auriga-factio": "other", "x-auriga-role": "dev" },
+      )
+    ).status,
+  ).toBe(404);
+});
+
 test("POST /jobs/:id/run requires auth and 404s cross-tenant", async () => {
   const d = deps();
   const app = createApp({ ...d, runJob: () => {} });

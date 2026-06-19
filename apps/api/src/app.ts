@@ -206,8 +206,9 @@ export function createApp(deps: ApiDeps): Hono {
     if (ACTIVE_STATES.includes(rec.state))
       return c.json({ error: `job is already ${rec.state}` }, 409);
     if (rec.spec.require_approval && !rec.approved) return c.json({ error: "approve first" }, 409);
-    // Clear any stale cancel signal so re-running a cancelled/failed job isn't cancelled at once.
-    if (rec.cancel_requested) await deps.store.update(id, { cancel_requested: false });
+    // Clear any stale cancel/pause signal so re-running (or resuming) doesn't stop at once.
+    if (rec.cancel_requested || rec.pause_requested)
+      await deps.store.update(id, { cancel_requested: false, pause_requested: false });
     deps.runJob(id);
     await safeAudit(deps.audit, {
       factio: rec.spec.factio,
@@ -246,6 +247,27 @@ export function createApp(deps: ApiDeps): Hono {
       job_id: id,
     });
     return c.json({ cancelling: active, state: active ? rec.state : "cancelled" });
+  });
+
+  // Cooperative pause: signals an active run to stop resumably at its next attempt
+  // boundary (state → `paused`, checkpoint kept). Resume via POST /jobs/:id/run, which
+  // clears the pause signal. Only an active run can be paused.
+  app.post("/jobs/:id/pause", async (c) => {
+    const actor = actorOf(c);
+    if (!actor) return c.json({ error: "auth required" }, 401);
+    const id = c.req.param("id");
+    const rec = await deps.store.get(id);
+    if (!rec || rec.spec.factio !== actor.factio) return c.json({ error: "not found" }, 404);
+    if (!ACTIVE_STATES.includes(rec.state))
+      return c.json({ error: `cannot pause a ${rec.state} job` }, 409);
+    await deps.store.update(id, { pause_requested: true });
+    await safeAudit(deps.audit, {
+      factio: rec.spec.factio,
+      actor: actor.role,
+      action: "job.pause_requested",
+      job_id: id,
+    });
+    return c.json({ pausing: true });
   });
 
   // Runtime config: GET is an open governance view; PUT rewrites RBAC/quotas so it

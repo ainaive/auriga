@@ -2,19 +2,19 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { runJob } from "@/lib/actions";
+import { pauseJob } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
 
-/** Kick a runnable job to execute (in-process, dev-grade). `label` is "Resume" for a paused job. */
-export function RunButton({ id, label = "Run" }: { id: string; label?: string }) {
+/** Request a resumable pause of an active run. Shown only while the job is active. */
+export function PauseButton({ id }: { id: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  function onRun() {
+  function onPause() {
     setError(null);
     startTransition(async () => {
-      const res = await runJob(id);
+      const res = await pauseJob(id);
       if (res.ok) router.refresh();
       else setError(res.error);
     });
@@ -22,8 +22,8 @@ export function RunButton({ id, label = "Run" }: { id: string; label?: string })
 
   return (
     <>
-      <Button onClick={onRun} disabled={pending}>
-        {pending ? "Starting…" : label}
+      <Button variant="secondary" onClick={onPause} disabled={pending}>
+        {pending ? "Pausing…" : "Pause"}
       </Button>
       {error && <span className="text-sm text-destructive">{error}</span>}
     </>
