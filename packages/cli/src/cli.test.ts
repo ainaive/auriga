@@ -17,9 +17,9 @@ const SAMPLE_SPEC = {
   budget: { max_tokens: 1000, max_wall_time_s: 60, max_cost_usd: 1, max_steps: 10 },
 };
 
-async function runCli(args: string[], home: string) {
+async function runCli(args: string[], home: string, extraEnv: Record<string, string> = {}) {
   const proc = Bun.spawn(["bun", MAIN, ...args], {
-    env: { ...process.env, AURIGA_HOME: home },
+    env: { ...process.env, AURIGA_HOME: home, ...extraEnv },
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -145,7 +145,7 @@ test("audit and dashboard reflect a created job", async () => {
 test("skills without AURIGA_SKILLS exits non-zero", async () => {
   const home = await mkdtemp(join(tmpdir(), "auriga-cli-"));
   try {
-    const r = await runCli(["skills"], home);
+    const r = await runCli(["skills"], home, { AURIGA_SKILLS: "" }); // ensure unset/empty
     expect(r.code).toBe(1);
     expect(r.stderr).toContain("AURIGA_SKILLS");
   } finally {

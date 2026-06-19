@@ -22,11 +22,18 @@ const spec: JobSpec = {
   budget: { max_tokens: 1000, max_wall_time_s: 60, max_cost_usd: 1, max_steps: 10 },
 };
 
-function post(app: ReturnType<typeof createApp>, path: string, body: unknown) {
+const AUTH = { "x-auriga-factio": "acme", "x-auriga-role": "dev" };
+
+function post(
+  app: ReturnType<typeof createApp>,
+  path: string,
+  body: unknown,
+  headers: Record<string, string> = {},
+) {
   return app.request(path, {
     method: "POST",
     body: JSON.stringify(body),
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...headers },
   });
 }
 
@@ -41,17 +48,17 @@ test("submit → list → get → approve, with audit", async () => {
   const d = deps();
   const app = createApp(d);
 
-  const submitRes = await post(app, "/jobs", { spec, actor: { factio: "acme", role: "dev" } });
+  const submitRes = await post(app, "/jobs", { spec }, AUTH);
   expect(submitRes.status).toBe(201);
 
-  const listRes = await app.request("/jobs?factio=acme");
+  const listRes = await app.request("/jobs", { headers: AUTH });
   const listed = (await listRes.json()) as Array<{ id: string }>;
   expect(listed.map((j) => j.id)).toContain("job_api");
 
-  const getRes = await app.request("/jobs/job_api");
+  const getRes = await app.request("/jobs/job_api", { headers: AUTH });
   expect(getRes.status).toBe(200);
 
-  const approveRes = await post(app, "/jobs/job_api/approve", {});
+  const approveRes = await post(app, "/jobs/job_api/approve", {}, AUTH);
   expect(await approveRes.json()).toEqual({ approved: true });
   expect((await d.store.get("job_api"))?.approved).toBe(true);
 
@@ -63,20 +70,26 @@ test("submit → list → get → approve, with audit", async () => {
 
 test("policy-denied submit returns 403", async () => {
   const app = createApp(deps());
-  const res = await post(app, "/jobs", { spec, actor: { factio: "acme", role: "guest" } });
+  const res = await post(app, "/jobs", { spec }, { "x-auriga-factio": "acme", "x-auriga-role": "guest" });
   expect(res.status).toBe(403);
 });
 
 test("invalid spec returns 400", async () => {
   const app = createApp(deps());
-  const res = await post(app, "/jobs", { spec: { id: "bad" }, actor: { factio: "acme", role: "dev" } });
+  const res = await post(app, "/jobs", { spec: { id: "bad" } }, AUTH);
   expect(res.status).toBe(400);
 });
 
-test("missing job 404s", async () => {
+test("requests without auth headers are 401", async () => {
   const app = createApp(deps());
-  expect((await app.request("/jobs/nope")).status).toBe(404);
-  expect((await app.request("/jobs/nope/trace")).status).toBe(404);
+  expect((await app.request("/jobs")).status).toBe(401);
+  expect((await post(app, "/jobs", { spec })).status).toBe(401);
+});
+
+test("missing/cross-tenant job 404s (with auth)", async () => {
+  const app = createApp(deps());
+  expect((await app.request("/jobs/nope", { headers: AUTH })).status).toBe(404);
+  expect((await app.request("/jobs/nope/trace", { headers: AUTH })).status).toBe(404);
 });
 
 test("dashboard + console render", async () => {

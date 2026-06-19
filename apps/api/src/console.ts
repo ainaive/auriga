@@ -20,17 +20,30 @@ export const CONSOLE_HTML = `<!doctype html>
   <h2>Tenants</h2><div id="tenants"></div>
   <h2>Recent audit</h2><div id="audit"></div>
   <script type="module">
+    // All values are inserted via textContent — never innerHTML — so API data
+    // (factio, action, job ids) can't inject markup/script (no XSS).
     const d = await (await fetch('/dashboard')).json();
-    document.getElementById('totals').innerHTML =
-      \`<p><b>\${d.totals.jobs}</b> jobs · <b>\${d.totals.tenants}</b> tenants · ~$\${d.totals.cost_usd.toFixed(4)}</p>\`;
-    document.getElementById('tenants').innerHTML =
-      '<table><tr><th>factio</th><th>jobs</th><th>states</th><th>cost</th></tr>' +
-      d.tenants.map(t => \`<tr><td>\${t.factio}</td><td>\${t.total}</td><td>\${Object.entries(t.byState).map(([k,v])=>k+':'+v).join(' ')}</td><td>~$\${t.cost_usd.toFixed(4)}</td></tr>\`).join('') +
-      '</table>';
-    document.getElementById('audit').innerHTML =
-      '<table><tr><th>ts</th><th>factio</th><th>action</th><th>job</th></tr>' +
-      d.recentAudit.map(e => \`<tr><td>\${e.ts}</td><td>\${e.factio}</td><td><code>\${e.action}</code></td><td>\${e.job_id ?? ''}</td></tr>\`).join('') +
-      '</table>';
+    const el = (tag, s) => { const n = document.createElement(tag); if (s !== undefined) n.textContent = s; return n; };
+    const table = (headers, rows) => {
+      const t = el('table');
+      const hr = el('tr');
+      for (const h of headers) hr.append(el('th', h));
+      t.append(hr);
+      for (const r of rows) {
+        const tr = el('tr');
+        for (const c of r) tr.append(el('td', c));
+        t.append(tr);
+      }
+      return t;
+    };
+    document.getElementById('totals').append(
+      el('p', \`\${d.totals.jobs} jobs · \${d.totals.tenants} tenants · ~$\${d.totals.cost_usd.toFixed(4)}\`));
+    document.getElementById('tenants').append(table(['factio', 'jobs', 'states', 'cost'],
+      d.tenants.map(t => [t.factio, String(t.total),
+        Object.entries(t.byState).map(([k, v]) => k + ':' + v).join(' '),
+        '~$' + t.cost_usd.toFixed(4)])));
+    document.getElementById('audit').append(table(['ts', 'factio', 'action', 'job'],
+      d.recentAudit.map(e => [e.ts, e.factio, e.action, e.job_id ?? ''])));
   </script>
 </body>
 </html>`;

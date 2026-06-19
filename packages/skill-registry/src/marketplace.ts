@@ -29,7 +29,7 @@ export async function searchSkills(
   opts: { query?: string } = {},
 ): Promise<MarketplaceEntry[]> {
   const metas = await deps.registry.resolve(ctx);
-  const q = opts.query?.toLowerCase();
+  const q = opts.query?.trim().toLowerCase() || undefined;
   const filtered = q
     ? metas.filter(
         (m) => m.name.toLowerCase().includes(q) || m.description.toLowerCase().includes(q),

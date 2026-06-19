@@ -4,7 +4,15 @@ import { join } from "node:path";
 import { parseJobSpec } from "@auriga/core";
 import { formatTrace, formatUsage } from "@auriga/capella";
 import { loadEvalCases, runEvals } from "@auriga/evals";
-import { buildDashboard, FileAuditLog, FileJobStore, Scheduler, Worker, type JobRecord } from "@auriga/habenae";
+import {
+  buildDashboard,
+  FileAuditLog,
+  FileJobStore,
+  safeAudit,
+  Scheduler,
+  Worker,
+  type JobRecord,
+} from "@auriga/habenae";
 import { AnthropicProvider, MODELS } from "@auriga/provider";
 import { selectDriver, type SandboxDriver } from "@auriga/sandbox";
 import { openDevRegistry, searchSkills } from "@auriga/skill-registry";
@@ -137,7 +145,7 @@ async function create(store: FileJobStore, args: string[]): Promise<void> {
     return;
   }
   await store.create(spec);
-  await auditLog().record({ factio: spec.factio, actor: ACTOR, action: "job.created", job_id: spec.id });
+  await safeAudit(auditLog(), { factio: spec.factio, actor: ACTOR, action: "job.created", job_id: spec.id });
   console.log(`created ${spec.id} (pending) — run \`auriga schedule\` to execute`);
 }
 
@@ -184,7 +192,7 @@ async function approve(store: FileJobStore, args: string[]): Promise<void> {
   const rec = await requireJob(store, args[0]);
   if (!rec) return;
   await store.update(rec.id, { approved: true });
-  await auditLog().record({ factio: rec.spec.factio, actor: ACTOR, action: "job.approved", job_id: rec.id });
+  await safeAudit(auditLog(), { factio: rec.spec.factio, actor: ACTOR, action: "job.approved", job_id: rec.id });
   console.log(`approved ${rec.id} — run: auriga run ${rec.id}`);
 }
 

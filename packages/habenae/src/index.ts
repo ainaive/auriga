@@ -34,6 +34,7 @@ export {
   InMemoryAuditLog,
   FileAuditLog,
   PostgresAuditLog,
+  safeAudit,
   AUDIT_SCHEMA_SQL,
   type AuditLog,
   type AuditEvent,

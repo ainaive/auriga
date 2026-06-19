@@ -1,5 +1,5 @@
 import { PolicyError, type JobSpec } from "@auriga/core";
-import type { AuditLog } from "./audit";
+import { safeAudit, type AuditLog } from "./audit";
 import type { JobRecord, JobStore } from "./types";
 
 /** Per-tenant access rules (RBAC). */
@@ -98,11 +98,12 @@ export async function submitJob(opts: SubmitOptions): Promise<JobRecord> {
     }
 
     const record = await store.create(effective);
-    await audit?.record({ factio: spec.factio, actor: actor.role, action: "job.created", job_id: spec.id });
+    await safeAudit(audit, { factio: spec.factio, actor: actor.role, action: "job.created", job_id: spec.id });
     return record;
   } catch (err) {
-    if (audit && err instanceof PolicyError) {
-      await audit.record({
+    if (err instanceof PolicyError) {
+      // best-effort: never let an audit failure mask the original PolicyError
+      await safeAudit(audit, {
         factio: spec.factio,
         actor: actor.role,
         action: "policy.denied",

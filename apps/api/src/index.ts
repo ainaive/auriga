@@ -9,7 +9,15 @@ import { createApp } from "./app";
  * Postgres store / a real registry).
  */
 const home = process.env.AURIGA_HOME ?? join(process.cwd(), ".auriga", "jobs");
-const port = Number.parseInt(process.env.PORT ?? "8787", 10);
+
+function parsePort(raw: string | undefined): number {
+  const n = raw === undefined ? 8787 : Number.parseInt(raw, 10);
+  if (!Number.isInteger(n) || n < 1 || n > 65535) {
+    throw new Error(`invalid PORT: ${raw} (expected 1..65535)`);
+  }
+  return n;
+}
+const port = parsePort(process.env.PORT);
 
 const app = createApp({
   store: new FileJobStore(home),

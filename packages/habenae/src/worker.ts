@@ -3,7 +3,7 @@ import { Recorder, estimateCostUsd } from "@auriga/capella";
 import { runJob, type JobEvent, type RunJobResult } from "@auriga/currus";
 import type { ModelRouter, ProviderRouter } from "@auriga/provider";
 import type { CreateSandboxOptions, SandboxDriver } from "@auriga/sandbox";
-import type { AuditLog } from "./audit";
+import { safeAudit, type AuditLog } from "./audit";
 import type { JobStore, WorkerCheckpoint } from "./types";
 
 const STATE_ACTION: Record<string, string> = {
@@ -73,7 +73,7 @@ export class Worker {
           loaded_skills: [],
         }),
       );
-      await this.opts.audit?.record({
+      await safeAudit(this.opts.audit, {
         factio: record.spec.factio,
         actor: "worker",
         action: "job.paused",
@@ -163,7 +163,7 @@ export class Worker {
         steps: result.steps,
         loaded_skills: result.loadedSkills,
       });
-      await this.opts.audit?.record({
+      await safeAudit(this.opts.audit, {
         factio: record.spec.factio,
         actor: "worker",
         action: STATE_ACTION[result.state] ?? "job.unknown",

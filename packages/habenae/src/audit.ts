@@ -29,6 +29,20 @@ function stamp(event: NewAuditEvent): AuditEvent {
   return { id: newId("aud"), ts: new Date().toISOString(), ...event };
 }
 
+function cap<T>(items: T[], limit?: number): T[] {
+  return limit === undefined ? items : items.slice(0, Math.max(0, limit));
+}
+
+/** Best-effort audit: record an event without ever failing the caller's operation. */
+export async function safeAudit(audit: AuditLog | undefined, event: NewAuditEvent): Promise<void> {
+  if (!audit) return;
+  try {
+    await audit.record(event);
+  } catch (err) {
+    console.warn(`[auriga] audit write failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
 export class InMemoryAuditLog implements AuditLog {
   private readonly events: AuditEvent[] = [];
 
@@ -39,13 +53,12 @@ export class InMemoryAuditLog implements AuditLog {
   }
 
   async list(limit?: number): Promise<AuditEvent[]> {
-    const recent = [...this.events].reverse();
-    return (limit ? recent.slice(0, limit) : recent).map((e) => structuredClone(e));
+    return cap([...this.events].reverse(), limit).map((e) => structuredClone(e));
   }
 
   async listByFactio(factio: string, limit?: number): Promise<AuditEvent[]> {
     const recent = [...this.events].reverse().filter((e) => e.factio === factio);
-    return (limit ? recent.slice(0, limit) : recent).map((e) => structuredClone(e));
+    return cap(recent, limit).map((e) => structuredClone(e));
   }
 }
 
@@ -79,13 +92,12 @@ export class FileAuditLog implements AuditLog {
   }
 
   async list(limit?: number): Promise<AuditEvent[]> {
-    const recent = (await this.readAll()).reverse();
-    return limit ? recent.slice(0, limit) : recent;
+    return cap((await this.readAll()).reverse(), limit);
   }
 
   async listByFactio(factio: string, limit?: number): Promise<AuditEvent[]> {
     const recent = (await this.readAll()).reverse().filter((e) => e.factio === factio);
-    return limit ? recent.slice(0, limit) : recent;
+    return cap(recent, limit);
   }
 }
 
@@ -100,6 +112,16 @@ create table if not exists audit_events (
   detail  text
 );
 create index if not exists audit_factio_idx on audit_events (factio, ts desc);
+
+-- Enforce append-only at the database layer: reject UPDATE/DELETE.
+create or replace function prevent_audit_events_mutation() returns trigger
+language plpgsql as $$ begin raise exception 'audit_events is append-only'; end; $$;
+drop trigger if exists audit_events_no_update on audit_events;
+create trigger audit_events_no_update before update on audit_events
+  for each row execute function prevent_audit_events_mutation();
+drop trigger if exists audit_events_no_delete on audit_events;
+create trigger audit_events_no_delete before delete on audit_events
+  for each row execute function prevent_audit_events_mutation();
 `;
 
 /** Append-only Postgres audit log. Verified against a live database. */
@@ -120,16 +142,22 @@ export class PostgresAuditLog implements AuditLog {
     return full;
   }
 
-  async list(limit = 100): Promise<AuditEvent[]> {
-    const res = await this.pool.query(`select * from audit_events order by ts desc limit $1`, [limit]);
+  async list(limit?: number): Promise<AuditEvent[]> {
+    const res =
+      limit === undefined
+        ? await this.pool.query(`select * from audit_events order by ts desc`)
+        : await this.pool.query(`select * from audit_events order by ts desc limit $1`, [limit]);
     return res.rows.map(rowToEvent);
   }
 
-  async listByFactio(factio: string, limit = 100): Promise<AuditEvent[]> {
-    const res = await this.pool.query(
-      `select * from audit_events where factio = $1 order by ts desc limit $2`,
-      [factio, limit],
-    );
+  async listByFactio(factio: string, limit?: number): Promise<AuditEvent[]> {
+    const res =
+      limit === undefined
+        ? await this.pool.query(`select * from audit_events where factio = $1 order by ts desc`, [factio])
+        : await this.pool.query(
+            `select * from audit_events where factio = $1 order by ts desc limit $2`,
+            [factio, limit],
+          );
     return res.rows.map(rowToEvent);
   }
 }

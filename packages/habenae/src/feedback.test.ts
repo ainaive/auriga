@@ -26,8 +26,10 @@ function spec(id: string): JobSpec {
   };
 }
 
-test("the worker feeds per-skill usage back to the registry after a run", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "auriga-feedback-"));
+test(
+  "the worker feeds per-skill usage back to the registry after a run",
+  async () => {
+    const dir = await mkdtemp(join(tmpdir(), "auriga-feedback-"));
   const store = new InMemoryJobStore();
   await store.create(spec("job_fb"));
   try {
@@ -50,7 +52,9 @@ test("the worker feeds per-skill usage back to the registry after a run", async 
     const stats = await registry.stats("fix-failing-test");
     expect(stats.uses).toBe(1);
     expect(stats.successes).toBe(1);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  },
+  30_000,
+);

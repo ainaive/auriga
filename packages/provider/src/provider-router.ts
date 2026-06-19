@@ -38,6 +38,9 @@ export function costAwareRouter(opts: {
   cheap: Backend;
   cheapBelowUsd: number;
 }): ProviderRouter {
+  if (!Number.isFinite(opts.cheapBelowUsd) || opts.cheapBelowUsd <= 0) {
+    throw new Error("cheapBelowUsd must be a positive finite number");
+  }
   return {
     route(spec) {
       if (spec.budget.max_cost_usd < opts.cheapBelowUsd) {

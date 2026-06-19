@@ -39,6 +39,7 @@ async function shared(audit: AuditLog) {
   expect(factioA.map((e) => e.job_id)).toEqual(["1", "1"]);
 
   expect(await audit.list(1)).toHaveLength(1);
+  expect(await audit.list(0)).toHaveLength(0); // limit=0 means zero, not "all"
 }
 
 test("InMemoryAuditLog is append-only + ordered + tenant-filterable", async () => {
