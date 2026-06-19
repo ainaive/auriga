@@ -15,5 +15,7 @@ commit-msg:
 
 pre-push:
   jobs:
+    # The Bun gate (hermetic). apps/console has its own Vitest runner + CI job, so
+    # it is scoped out here (its tests use the Vitest API, not bun:test).
     - name: test
-      run: bun test packages apps scripts
+      run: bun test packages apps/api scripts
