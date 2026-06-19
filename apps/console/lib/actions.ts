@@ -11,6 +11,7 @@ import { authHeaders, BASE } from "./api";
 export type CreateResult = { ok: true; id: string } | { ok: false; error: string };
 export type ApproveResult = { ok: true } | { ok: false; error: string };
 export type RunResult = { ok: true } | { ok: false; error: string };
+export type CancelResult = { ok: true } | { ok: false; error: string };
 
 /** Read an `{ error }` body if present, else fall back to the HTTP status text. */
 async function errorOf(res: Response): Promise<string> {
@@ -53,6 +54,24 @@ export async function approveJob(id: string): Promise<ApproveResult> {
   let res: Response;
   try {
     res = await fetch(`${BASE}/jobs/${encodeURIComponent(id)}/approve`, {
+      method: "POST",
+      headers: authHeaders,
+      cache: "no-store",
+    });
+  } catch {
+    return { ok: false, error: "API unreachable" };
+  }
+  if (!res.ok) return { ok: false, error: await errorOf(res) };
+  revalidatePath(`/jobs/${id}`);
+  revalidatePath("/jobs");
+  return { ok: true };
+}
+
+/** Request cancellation of a job (cooperative — an active run stops at its next checkpoint). */
+export async function cancelJob(id: string): Promise<CancelResult> {
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}/jobs/${encodeURIComponent(id)}/cancel`, {
       method: "POST",
       headers: authHeaders,
       cache: "no-store",

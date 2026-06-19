@@ -24,6 +24,7 @@ export class InMemoryJobStore implements JobStore {
       reason: null,
       model: null,
       approved: false,
+      cancel_requested: false,
       retries: 0,
       usage: { input_tokens: 0, output_tokens: 0 },
       attempts: 0,

@@ -10,6 +10,7 @@ const STATE_ACTION: Record<string, string> = {
   done: "job.completed",
   failed: "job.failed",
   paused: "job.paused",
+  cancelled: "job.cancelled",
 };
 
 export interface WorkerOptions {
@@ -105,6 +106,9 @@ export class Worker {
         sandbox,
         onTrace: recorder.record,
         approvalGate: { isApproved: async () => (await store.get(jobId))?.approved ?? false },
+        cancellationGate: {
+          isCancelled: async () => (await store.get(jobId))?.cancel_requested ?? false,
+        },
         ...(this.opts.registry ? { registry: this.opts.registry } : {}),
         ...(this.opts.trustedKeys ? { trustedKeys: this.opts.trustedKeys } : {}),
         ...(this.opts.role ? { role: this.opts.role } : {}),

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { ApproveButton } from "@/components/approve-button";
+import { CancelButton } from "@/components/cancel-button";
 import { JobProgress } from "@/components/job-progress";
 import { RunButton } from "@/components/run-button";
 import { Badge } from "@/components/ui/badge";
@@ -15,9 +16,11 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
   const trace = await api.trace(id);
 
   const active = ["planning", "running", "verifying"].includes(job.state);
+  const terminal = ["done", "failed", "cancelled"].includes(job.state);
   const needsApproval = job.state === "paused" && !job.approved;
-  // Runnable: not currently active, not finished, and not waiting on approval.
+  // Runnable: not currently active, not done, and not waiting on approval (failed/cancelled re-run ok).
   const runnable = !active && job.state !== "done" && !needsApproval;
+  const cancellable = !terminal; // pending / planning / running / verifying / paused
 
   return (
     <main className="space-y-6">
@@ -32,9 +35,12 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
           model {job.model ?? "—"} · attempts {job.attempts} · steps {job.steps} · tokens{" "}
           {job.usage.input_tokens}/{job.usage.output_tokens}
         </p>
-        {needsApproval && <ApproveButton id={job.id} />}
-        {runnable && <RunButton id={job.id} />}
-        {active && <p className="mt-3 text-sm text-neutral-500">Running… (auto-refreshing)</p>}
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          {needsApproval && <ApproveButton id={job.id} />}
+          {runnable && <RunButton id={job.id} />}
+          {cancellable && <CancelButton id={job.id} />}
+          {active && <span className="text-sm text-neutral-500">Running… (auto-refreshing)</span>}
+        </div>
       </Card>
       <JobProgress state={job.state} />
 

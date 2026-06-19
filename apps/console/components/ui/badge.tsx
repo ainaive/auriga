@@ -9,6 +9,7 @@ const TONE: Record<string, string> = {
   verifying: "bg-amber-100 text-amber-800",
   paused: "bg-amber-100 text-amber-800",
   pending: "bg-neutral-100 text-neutral-700",
+  cancelled: "bg-neutral-200 text-neutral-600",
 };
 
 export function Badge({ children, tone }: { children: ReactNode; tone?: string }) {

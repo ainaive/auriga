@@ -21,11 +21,11 @@ export function ApproveButton({ id }: { id: string }) {
   }
 
   return (
-    <div className="mt-3 flex items-center gap-3">
+    <>
       <Button onClick={onApprove} disabled={pending}>
         {pending ? "Approving…" : "Approve"}
       </Button>
       {error && <span className="text-sm text-red-600">{error}</span>}
-    </div>
+    </>
   );
 }

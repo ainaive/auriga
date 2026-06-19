@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { parseJobSpec, PolicyError } from "@auriga/core";
+import { isTerminal, parseJobSpec, PolicyError, type JobState } from "@auriga/core";
 import {
   buildDashboard,
   safeAudit,
@@ -127,6 +127,8 @@ export function createApp(deps: ApiDeps): Hono {
     if (ACTIVE_STATES.includes(rec.state))
       return c.json({ error: `job is already ${rec.state}` }, 409);
     if (rec.spec.require_approval && !rec.approved) return c.json({ error: "approve first" }, 409);
+    // Clear any stale cancel signal so re-running a cancelled/failed job isn't cancelled at once.
+    if (rec.cancel_requested) await deps.store.update(id, { cancel_requested: false });
     deps.runJob(id);
     await safeAudit(deps.audit, {
       factio: rec.spec.factio,
@@ -135,6 +137,32 @@ export function createApp(deps: ApiDeps): Hono {
       job_id: id,
     });
     return c.json({ running: true }, 202);
+  });
+
+  // Cooperative cancellation. An active job is signalled (the runner stops at its next
+  // checkpoint and finalizes `cancelled`); an idle job is marked `cancelled` directly.
+  app.post("/jobs/:id/cancel", async (c) => {
+    const actor = actorOf(c);
+    if (!actor) return c.json({ error: "auth required" }, 401);
+    const id = c.req.param("id");
+    const rec = await deps.store.get(id);
+    if (!rec || rec.spec.factio !== actor.factio) return c.json({ error: "not found" }, 404);
+    if (isTerminal(rec.state as JobState))
+      return c.json({ error: `job is already ${rec.state}` }, 409);
+    const active = ACTIVE_STATES.includes(rec.state);
+    await deps.store.update(
+      id,
+      active
+        ? { cancel_requested: true }
+        : { state: "cancelled", reason: "cancellation requested", cancel_requested: true },
+    );
+    await safeAudit(deps.audit, {
+      factio: rec.spec.factio,
+      actor: actor.role,
+      action: "job.cancel_requested",
+      job_id: id,
+    });
+    return c.json({ cancelling: active, state: active ? rec.state : "cancelled" });
   });
 
   // Aggregate governance views + console (deployment gates these at the proxy).

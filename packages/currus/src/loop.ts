@@ -36,6 +36,8 @@ export interface RunLoopOptions {
   onCompact?: (dropped: Message[]) => void | Promise<void>;
   /** Trace hook: model responses, tool calls, and compaction events. */
   onTrace?: (event: TraceEvent) => void;
+  /** Cooperative cancellation: checked at the top of each step; true stops the loop. */
+  onCancelled?: () => Promise<boolean>;
 }
 
 export interface LoopResult {
@@ -46,7 +48,7 @@ export interface LoopResult {
   usage: Usage;
   /** Full transcript (input messages + assistant turns + tool results). */
   messages: Message[];
-  stop: "completed" | "max_steps";
+  stop: "completed" | "max_steps" | "cancelled";
 }
 
 /**
@@ -62,6 +64,10 @@ export async function runLoop(opts: RunLoopOptions): Promise<LoopResult> {
   const usage: Usage = { input_tokens: 0, output_tokens: 0 };
 
   for (let step = 1; step <= maxSteps; step++) {
+    // Cooperative cancellation: stop between steps (never mid model-call/tool-dispatch).
+    if (opts.onCancelled && (await opts.onCancelled())) {
+      return { text: "", steps: step - 1, usage, messages, stop: "cancelled" };
+    }
     if (opts.compaction) {
       const c = compactMessages(messages, opts.compaction);
       if (c.compacted) {
