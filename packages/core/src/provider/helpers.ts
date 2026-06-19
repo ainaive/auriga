@@ -28,7 +28,10 @@ export function isToolResult(block: ContentBlock): block is ToolResultBlock {
 
 /** Concatenate all text blocks in a content array. */
 export function textOf(content: readonly ContentBlock[]): string {
-  return content.filter(isText).map((b) => b.text).join("");
+  return content
+    .filter(isText)
+    .map((b) => b.text)
+    .join("");
 }
 
 /** Extract all tool_use blocks (the model's requested tool calls). */
@@ -99,10 +102,7 @@ export function validateModelResponse(res: ModelResponse): void {
   if (!reasons.includes(res.stop_reason)) {
     throw new ValidationError(`ModelResponse.stop_reason invalid: ${res.stop_reason}`);
   }
-  if (
-    typeof res.usage?.input_tokens !== "number" ||
-    typeof res.usage?.output_tokens !== "number"
-  ) {
+  if (typeof res.usage?.input_tokens !== "number" || typeof res.usage?.output_tokens !== "number") {
     throw new ValidationError("ModelResponse.usage must have numeric token counts");
   }
   if (typeof res.model !== "string" || res.model.length === 0) {

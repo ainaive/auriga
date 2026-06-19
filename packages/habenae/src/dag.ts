@@ -23,7 +23,10 @@ export interface DependencyStatus {
  *  - waiting (pendingDeps) otherwise.
  * A missing dependency is treated as a failed dep (can never be satisfied).
  */
-export async function dependencyStatus(store: JobStore, record: JobRecord): Promise<DependencyStatus> {
+export async function dependencyStatus(
+  store: JobStore,
+  record: JobRecord,
+): Promise<DependencyStatus> {
   const deps = record.spec.depends_on ?? [];
   const failedDeps: string[] = [];
   const pendingDeps: string[] = [];

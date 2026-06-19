@@ -98,7 +98,12 @@ export async function submitJob(opts: SubmitOptions): Promise<JobRecord> {
     }
 
     const record = await store.create(effective);
-    await safeAudit(audit, { factio: spec.factio, actor: actor.role, action: "job.created", job_id: spec.id });
+    await safeAudit(audit, {
+      factio: spec.factio,
+      actor: actor.role,
+      action: "job.created",
+      job_id: spec.id,
+    });
     return record;
   } catch (err) {
     if (err instanceof PolicyError) {

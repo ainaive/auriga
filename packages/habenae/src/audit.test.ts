@@ -61,7 +61,13 @@ test("submitJob records job.created on success and policy.denied on denial", asy
 
   await submitJob({ store, policy, spec: spec(), actor: { factio: "acme", role: "dev" }, audit });
   await expect(
-    submitJob({ store, policy, spec: spec({ id: "j2" }), actor: { factio: "acme", role: "guest" }, audit }),
+    submitJob({
+      store,
+      policy,
+      spec: spec({ id: "j2" }),
+      actor: { factio: "acme", role: "guest" },
+      audit,
+    }),
   ).rejects.toBeInstanceOf(PolicyError);
 
   const actions = (await audit.list()).map((e) => e.action);

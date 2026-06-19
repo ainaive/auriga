@@ -22,5 +22,10 @@ export function traceCost(trace: Trace): TraceCost {
     }
   }
   const usage: Usage = { input_tokens: input, output_tokens: output };
-  return { model: trace.model, usage, cost_usd: estimateCostUsd(trace.model, usage), model_calls: calls };
+  return {
+    model: trace.model,
+    usage,
+    cost_usd: estimateCostUsd(trace.model, usage),
+    model_calls: calls,
+  };
 }

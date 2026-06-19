@@ -5,7 +5,8 @@ import { formatExec, shellQuote } from "./util";
 export function makeGitTool(sandbox: Sandbox): Tool {
   return {
     name: "git",
-    description: "Run a git command in the workspace, with tokenized args, e.g. ['status'] or ['diff','HEAD'].",
+    description:
+      "Run a git command in the workspace, with tokenized args, e.g. ['status'] or ['diff','HEAD'].",
     input_schema: {
       type: "object",
       properties: {

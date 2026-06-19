@@ -61,11 +61,15 @@ export class VerificationGate {
         };
       }
       case "named_check": {
-        const check = Object.prototype.hasOwnProperty.call(this.namedChecks, criterion.name)
+        const check = Object.hasOwn(this.namedChecks, criterion.name)
           ? this.namedChecks[criterion.name]
           : undefined;
         if (typeof check !== "function") {
-          return { criterion, passed: false, evidence: `named check not registered: ${criterion.name}` };
+          return {
+            criterion,
+            passed: false,
+            evidence: `named check not registered: ${criterion.name}`,
+          };
         }
         try {
           const { passed, evidence } = await check(sandbox);

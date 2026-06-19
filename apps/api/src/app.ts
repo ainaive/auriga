@@ -80,7 +80,13 @@ export function createApp(deps: ApiDeps): Hono {
       return c.json({ error: err instanceof Error ? err.message : "invalid spec" }, 400);
     }
     try {
-      const record = await submitJob({ store: deps.store, policy: deps.policy, spec, actor, audit: deps.audit });
+      const record = await submitJob({
+        store: deps.store,
+        policy: deps.policy,
+        spec,
+        actor,
+        audit: deps.audit,
+      });
       return c.json(record, 201);
     } catch (err) {
       if (err instanceof PolicyError) return c.json({ error: err.message }, 403);
@@ -95,12 +101,19 @@ export function createApp(deps: ApiDeps): Hono {
     const rec = await deps.store.get(id);
     if (!rec || rec.spec.factio !== actor.factio) return c.json({ error: "not found" }, 404);
     await deps.store.update(id, { approved: true });
-    await safeAudit(deps.audit, { factio: rec.spec.factio, actor: actor.role, action: "job.approved", job_id: id });
+    await safeAudit(deps.audit, {
+      factio: rec.spec.factio,
+      actor: actor.role,
+      action: "job.approved",
+      job_id: id,
+    });
     return c.json({ approved: true });
   });
 
   // Aggregate governance views + console (deployment gates these at the proxy).
-  app.get("/dashboard", async (c) => c.json(await buildDashboard({ store: deps.store, audit: deps.audit })));
+  app.get("/dashboard", async (c) =>
+    c.json(await buildDashboard({ store: deps.store, audit: deps.audit })),
+  );
 
   app.get("/audit", async (c) => {
     const factio = c.req.query("factio");

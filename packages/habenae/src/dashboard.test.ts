@@ -24,7 +24,11 @@ test("buildDashboard rolls up per-tenant counts, states, and cost + recent audit
   await store.create(spec("a1", "t1"));
   await store.create(spec("a2", "t1"));
   await store.create(spec("b1", "t2"));
-  await store.update("a1", { state: "done", model: "claude-sonnet-4-6", usage: { input_tokens: 1_000_000, output_tokens: 0 } });
+  await store.update("a1", {
+    state: "done",
+    model: "claude-sonnet-4-6",
+    usage: { input_tokens: 1_000_000, output_tokens: 0 },
+  });
   await store.update("a2", { state: "failed" });
   await store.update("b1", { state: "running" });
   await audit.record({ factio: "t1", actor: "worker", action: "job.completed", job_id: "a1" });

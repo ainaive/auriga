@@ -34,9 +34,7 @@ function canonicalizeContent(c: SkillContentForHash): string {
         size: f.size,
         executable: Boolean(f.executable),
       })),
-    entrypoints: [...(c.entrypoints ?? [])].sort((a, b) =>
-      compare(a.tool_name, b.tool_name),
-    ),
+    entrypoints: [...(c.entrypoints ?? [])].sort((a, b) => compare(a.tool_name, b.tool_name)),
   };
   return stableStringify(ordered);
 }

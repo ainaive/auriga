@@ -16,7 +16,8 @@ export function messageTokens(messages: readonly Message[]): number {
   for (const m of messages) {
     for (const b of m.content) {
       if (b.type === "text") total += estimateTokens(b.text);
-      else if (b.type === "tool_use") total += estimateTokens(b.name) + estimateTokens(JSON.stringify(b.input));
+      else if (b.type === "tool_use")
+        total += estimateTokens(b.name) + estimateTokens(JSON.stringify(b.input));
       else total += estimateTokens(b.content);
     }
   }

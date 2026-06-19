@@ -5,7 +5,11 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PolicyError } from "@auriga/core";
 import { LocalSandboxDriver, type Sandbox } from "@auriga/sandbox";
-import { loadBundleFromDir, openDevRegistry, type LocalSkillRegistry } from "@auriga/skill-registry";
+import {
+  loadBundleFromDir,
+  openDevRegistry,
+  type LocalSkillRegistry,
+} from "@auriga/skill-registry";
 import { SkillResolver, makeSelectSkillTool } from "./skills";
 import { ToolDispatcher } from "./dispatcher";
 
@@ -65,7 +69,9 @@ test("select fetches, verifies, mounts, and returns the body", async () => {
     expect(mounted.loaded.content_hash.length).toBeGreaterThan(0);
 
     // files are on the sandbox FS
-    expect(await sandbox.readFile(`${mounted.mountPath}/SKILL.md`)).toContain("# Fix a failing test");
+    expect(await sandbox.readFile(`${mounted.mountPath}/SKILL.md`)).toContain(
+      "# Fix a failing test",
+    );
     expect(await sandbox.readFile(`${mounted.mountPath}/reference/checklist.md`)).toContain(
       "checklist",
     );

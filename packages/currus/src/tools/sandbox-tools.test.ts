@@ -11,7 +11,10 @@ async function setup(): Promise<{ sandbox: Sandbox; dispatcher: ToolDispatcher }
 test("write_file then read_file round trips", async () => {
   const { sandbox, dispatcher } = await setup();
   try {
-    const w = await dispatcher.dispatch("write_file", { path: "src/a.ts", content: "export const x = 1;" });
+    const w = await dispatcher.dispatch("write_file", {
+      path: "src/a.ts",
+      content: "export const x = 1;",
+    });
     expect(w.isError).toBe(false);
     const r = await dispatcher.dispatch("read_file", { path: "src/a.ts" });
     expect(r.content).toContain("export const x = 1;");

@@ -9,7 +9,9 @@ import { LocalSandboxDriver, type Sandbox } from "@auriga/sandbox";
 import { loadBundleFromDir, openDevRegistry } from "@auriga/skill-registry";
 import { runJob } from "./job-runner";
 
-const EXAMPLE_SKILL_DIR = fileURLToPath(new URL("../../../skills/fix-failing-test", import.meta.url));
+const EXAMPLE_SKILL_DIR = fileURLToPath(
+  new URL("../../../skills/fix-failing-test", import.meta.url),
+);
 
 function makeSpec(overrides: Partial<JobSpec>): JobSpec {
   return {
@@ -34,9 +36,13 @@ test("emits model_response, tool_call, and verify events in order", async () => 
   const events: TraceEvent[] = [];
   try {
     const provider = new StubProvider([
-      toolUseResponse("write_file", { path: "answer.txt", content: "42" }, {
-        usage: { input_tokens: 12, output_tokens: 3 },
-      }),
+      toolUseResponse(
+        "write_file",
+        { path: "answer.txt", content: "42" },
+        {
+          usage: { input_tokens: 12, output_tokens: 3 },
+        },
+      ),
       textResponse("done"),
     ]);
     await runJob({
@@ -92,7 +98,7 @@ test("records skill_loaded with the exact version for required skills", async ()
     expect(skillEvents).toHaveLength(1);
     expect(skillEvents[0]?.skill.name).toBe("fix-failing-test");
     expect(skillEvents[0]?.skill.version).toBe("1.0.0");
-    expect((skillEvents[0]?.skill.content_hash.length ?? 0)).toBeGreaterThan(0);
+    expect(skillEvents[0]?.skill.content_hash.length ?? 0).toBeGreaterThan(0);
   } finally {
     await sandbox.destroy();
     await rm(dir, { recursive: true, force: true });

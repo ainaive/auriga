@@ -4,7 +4,12 @@ import { echoTool } from "./tools/echo";
 import type { Tool } from "./tool";
 
 test("definitions only include allowed tools", () => {
-  const other: Tool = { name: "other", description: "", input_schema: { type: "object" }, run: async () => "x" };
+  const other: Tool = {
+    name: "other",
+    description: "",
+    input_schema: { type: "object" },
+    run: async () => "x",
+  };
   const dispatcher = new ToolDispatcher([echoTool, other], ["echo"]);
   expect(dispatcher.definitions().map((d) => d.name)).toEqual(["echo"]);
 });
@@ -29,7 +34,10 @@ test("dispatch rejects a non-allowlisted tool WITHOUT running it", async () => {
 
 test("no allowlist means all registered tools are allowed", async () => {
   const dispatcher = new ToolDispatcher([echoTool]);
-  expect(await dispatcher.dispatch("echo", { text: "hi" })).toEqual({ content: "hi", isError: false });
+  expect(await dispatcher.dispatch("echo", { text: "hi" })).toEqual({
+    content: "hi",
+    isError: false,
+  });
 });
 
 test("unknown tool yields an error result", async () => {

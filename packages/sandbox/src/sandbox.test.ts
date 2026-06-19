@@ -2,9 +2,10 @@ import { test, expect, describe } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DockerSandboxDriver } from "./docker";
+import { DEFAULT_IMAGE, DockerSandboxDriver } from "./docker";
 import { LocalSandboxDriver } from "./local";
-import type { SandboxDriver } from "./types";
+import { spawnCapture } from "./spawn";
+import type { SandboxDriver, SandboxSnapshot } from "./types";
 
 /** Shared behavior every driver must satisfy. */
 function sandboxContract(makeDriver: () => SandboxDriver) {
@@ -54,7 +55,7 @@ function sandboxContract(makeDriver: () => SandboxDriver) {
   test("snapshot → restore into a new sandbox preserves files", async () => {
     const driver = makeDriver();
     const first = await driver.create({ workspace: { kind: "empty" } });
-    let snapshot;
+    let snapshot: SandboxSnapshot | undefined;
     try {
       await first.writeFile("src/a.ts", "const a = 1;");
       await first.writeFile("notes.md", "hello");
@@ -111,6 +112,14 @@ describe("LocalSandbox", () => {
 // (with Docker available) to run them.
 const runDocker =
   process.env.AURIGA_DOCKER_TESTS === "1" && (await new DockerSandboxDriver().isAvailable());
+
+// Pre-pull the image here, at module load (outside any per-test timeout). Otherwise the
+// first `docker run` pulls oven/bun:1 *inside* the first test and blows past the default
+// 5s timeout, while every later test reuses the warm image. Pre-pulling keeps each test
+// measuring sandbox behavior, not a one-time image fetch.
+if (runDocker) {
+  await spawnCapture("docker", ["pull", DEFAULT_IMAGE], { timeoutMs: 180_000 });
+}
 
 describe.if(runDocker)("DockerSandbox (AURIGA_DOCKER_TESTS=1)", () => {
   sandboxContract(() => new DockerSandboxDriver());

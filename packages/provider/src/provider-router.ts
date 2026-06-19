@@ -44,7 +44,11 @@ export function costAwareRouter(opts: {
   return {
     route(spec) {
       if (spec.budget.max_cost_usd < opts.cheapBelowUsd) {
-        return { provider: opts.cheap.provider, planModel: opts.cheap.model, actModel: opts.cheap.model };
+        return {
+          provider: opts.cheap.provider,
+          planModel: opts.cheap.model,
+          actModel: opts.cheap.model,
+        };
       }
       return {
         provider: opts.default.provider,

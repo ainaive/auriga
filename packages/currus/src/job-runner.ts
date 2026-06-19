@@ -138,8 +138,7 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
     : [userText(buildTaskMessage(spec))];
 
   const maxAttempts = opts.maxAttempts ?? 3;
-  const stepsPerAttempt =
-    opts.stepsPerAttempt ?? Math.max(4, Math.min(spec.budget.max_steps, 24));
+  const stepsPerAttempt = opts.stepsPerAttempt ?? Math.max(4, Math.min(spec.budget.max_steps, 24));
   const gate = new VerificationGate(opts.namedChecks ?? {}, {
     timeoutMs: spec.budget.max_wall_time_s * 1000,
   });
@@ -280,7 +279,8 @@ function buildTaskMessage(spec: JobSpec): string {
   const lines = [`Goal: ${spec.goal}`];
   const ws = spec.context_refs.workspace;
   lines.push(`Workspace: ${ws.kind} ${ws.url_or_path} (it is your current working directory).`);
-  if (spec.context_refs.files?.length) lines.push(`Relevant files: ${spec.context_refs.files.join(", ")}`);
+  if (spec.context_refs.files?.length)
+    lines.push(`Relevant files: ${spec.context_refs.files.join(", ")}`);
   if (spec.context_refs.links?.length) lines.push(`Links: ${spec.context_refs.links.join(", ")}`);
   return lines.join("\n");
 }

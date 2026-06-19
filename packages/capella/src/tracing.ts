@@ -27,47 +27,70 @@ export function emitSpans(t: Trace, tracer: Tracer = trace.getTracer(TRACER_NAME
     for (const e of t.events) {
       switch (e.type) {
         case "model_response": {
-          const s = tracer.startSpan("gen_ai.model_response", {
-            attributes: {
-              "gen_ai.usage.input_tokens": e.response.usage.input_tokens,
-              "gen_ai.usage.output_tokens": e.response.usage.output_tokens,
-              "gen_ai.response.finish_reason": e.response.stop_reason,
+          const s = tracer.startSpan(
+            "gen_ai.model_response",
+            {
+              attributes: {
+                "gen_ai.usage.input_tokens": e.response.usage.input_tokens,
+                "gen_ai.usage.output_tokens": e.response.usage.output_tokens,
+                "gen_ai.response.finish_reason": e.response.stop_reason,
+              },
             },
-          }, ctx);
+            ctx,
+          );
           s.end();
           break;
         }
         case "tool_call": {
-          const s = tracer.startSpan(`tool ${e.tool}`, {
-            attributes: { "auriga.tool": e.tool, "auriga.tool.is_error": e.isError },
-          }, ctx);
+          const s = tracer.startSpan(
+            `tool ${e.tool}`,
+            {
+              attributes: { "auriga.tool": e.tool, "auriga.tool.is_error": e.isError },
+            },
+            ctx,
+          );
           if (e.isError) s.setStatus({ code: SpanStatusCode.ERROR });
           s.end();
           break;
         }
         case "skill_loaded": {
-          const s = tracer.startSpan(`skill ${e.skill.name}`, {
-            attributes: { "auriga.skill.name": e.skill.name, "auriga.skill.version": e.skill.version },
-          }, ctx);
+          const s = tracer.startSpan(
+            `skill ${e.skill.name}`,
+            {
+              attributes: {
+                "auriga.skill.name": e.skill.name,
+                "auriga.skill.version": e.skill.version,
+              },
+            },
+            ctx,
+          );
           s.end();
           break;
         }
         case "verify": {
-          const s = tracer.startSpan(`verify attempt ${e.attempt}`, {
-            attributes: { "auriga.verify.attempt": e.attempt, "auriga.verify.passed": e.passed },
-          }, ctx);
+          const s = tracer.startSpan(
+            `verify attempt ${e.attempt}`,
+            {
+              attributes: { "auriga.verify.attempt": e.attempt, "auriga.verify.passed": e.passed },
+            },
+            ctx,
+          );
           if (!e.passed) s.setStatus({ code: SpanStatusCode.ERROR });
           s.end();
           break;
         }
         case "compaction": {
-          const s = tracer.startSpan("context.compaction", {
-            attributes: {
-              "auriga.compaction.dropped": e.dropped,
-              "auriga.compaction.before_tokens": e.before,
-              "auriga.compaction.after_tokens": e.after,
+          const s = tracer.startSpan(
+            "context.compaction",
+            {
+              attributes: {
+                "auriga.compaction.dropped": e.dropped,
+                "auriga.compaction.before_tokens": e.before,
+                "auriga.compaction.after_tokens": e.after,
+              },
             },
-          }, ctx);
+            ctx,
+          );
           s.end();
           break;
         }

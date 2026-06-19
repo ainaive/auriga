@@ -53,10 +53,15 @@ function makeRun(
 test("invalid quotas are rejected at construction", () => {
   const store = new InMemoryJobStore();
   const run = async () => {};
-  expect(() => new Scheduler({ store, run, quotas: { global: 0, perFactio: 1 } })).toThrow(/global/);
-  expect(() => new Scheduler({ store, run, quotas: { global: 1, perFactio: 0 } })).toThrow(/perFactio/);
+  expect(() => new Scheduler({ store, run, quotas: { global: 0, perFactio: 1 } })).toThrow(
+    /global/,
+  );
+  expect(() => new Scheduler({ store, run, quotas: { global: 1, perFactio: 0 } })).toThrow(
+    /perFactio/,
+  );
   expect(
-    () => new Scheduler({ store, run, quotas: { global: 1, perFactio: 1 }, retry: { maxRetries: -1 } }),
+    () =>
+      new Scheduler({ store, run, quotas: { global: 1, perFactio: 1 }, retry: { maxRetries: -1 } }),
   ).toThrow(/maxRetries/);
 });
 

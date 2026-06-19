@@ -102,7 +102,10 @@ test("terminates when the token budget is exhausted", async () => {
       textResponse("nope", { usage: { input_tokens: 10, output_tokens: 0 } }),
     ]);
     const result = await runJob({
-      spec: makeSpec({ allowed_tools: ["write_file"], budget: { max_tokens: 5, max_wall_time_s: 60, max_cost_usd: 1, max_steps: 20 } }),
+      spec: makeSpec({
+        allowed_tools: ["write_file"],
+        budget: { max_tokens: 5, max_wall_time_s: 60, max_cost_usd: 1, max_steps: 20 },
+      }),
       provider,
       model: "stub",
       sandbox,

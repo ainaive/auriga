@@ -24,11 +24,9 @@ function spec(id: string, maxCostUsd: number): JobSpec {
   };
 }
 
-test(
-  "the worker runs a low-budget job on the cheap backend",
-  async () => {
-    const store = new InMemoryJobStore();
-    await store.create(spec("job_cheap", 0.5));
+test("the worker runs a low-budget job on the cheap backend", async () => {
+  const store = new InMemoryJobStore();
+  await store.create(spec("job_cheap", 0.5));
 
   const cheap = new StubProvider([
     toolUseResponse("write_file", { path: "answer.txt", content: "x" }),
@@ -48,10 +46,8 @@ test(
     }),
   }).run("job_cheap");
 
-    expect(cheap.calls.length).toBeGreaterThan(0);
-    expect(strong.calls.length).toBe(0);
-    expect(cheap.calls[0]?.model).toBe("haiku");
-    expect((await store.get("job_cheap"))?.state).toBe("done");
-  },
-  30_000,
-);
+  expect(cheap.calls.length).toBeGreaterThan(0);
+  expect(strong.calls.length).toBe(0);
+  expect(cheap.calls[0]?.model).toBe("haiku");
+  expect((await store.get("job_cheap"))?.state).toBe("done");
+}, 30_000);

@@ -1,4 +1,4 @@
-import { Pool } from "pg";
+import type { Pool } from "pg";
 import type { JobSpec, Trace } from "@auriga/core";
 import type { JobPatch, JobRecord, JobStore, WorkerCheckpoint } from "./types";
 
@@ -100,7 +100,10 @@ export class PostgresJobStore implements JobStore {
     if (sets.length === 0) return;
     sets.push("updated_at = now()");
     values.push(id);
-    const res = await this.pool.query(`update jobs set ${sets.join(", ")} where id = $${i}`, values);
+    const res = await this.pool.query(
+      `update jobs set ${sets.join(", ")} where id = $${i}`,
+      values,
+    );
     if (res.rowCount === 0) throw new Error(`job not found: ${id}`);
   }
 

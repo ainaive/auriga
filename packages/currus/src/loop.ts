@@ -55,8 +55,7 @@ export interface LoopResult {
  * is hit. This is the seed of the Plan-Execute-Verify loop expanded in Phase 1.
  */
 export async function runLoop(opts: RunLoopOptions): Promise<LoopResult> {
-  const dispatcher =
-    opts.dispatcher ?? new ToolDispatcher(opts.tools ?? [], opts.allowedTools);
+  const dispatcher = opts.dispatcher ?? new ToolDispatcher(opts.tools ?? [], opts.allowedTools);
   const toolDefs = dispatcher.definitions();
   const messages = [...opts.messages];
   const maxSteps = opts.maxSteps ?? 10;
@@ -67,7 +66,12 @@ export async function runLoop(opts: RunLoopOptions): Promise<LoopResult> {
       const c = compactMessages(messages, opts.compaction);
       if (c.compacted) {
         messages.splice(0, messages.length, ...c.messages);
-        opts.onTrace?.({ type: "compaction", dropped: c.dropped.length, before: c.before, after: c.after });
+        opts.onTrace?.({
+          type: "compaction",
+          dropped: c.dropped.length,
+          before: c.before,
+          after: c.after,
+        });
         if (opts.onCompact) await opts.onCompact(c.dropped);
       }
     }

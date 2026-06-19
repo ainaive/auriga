@@ -70,7 +70,12 @@ test("submit → list → get → approve, with audit", async () => {
 
 test("policy-denied submit returns 403", async () => {
   const app = createApp(deps());
-  const res = await post(app, "/jobs", { spec }, { "x-auriga-factio": "acme", "x-auriga-role": "guest" });
+  const res = await post(
+    app,
+    "/jobs",
+    { spec },
+    { "x-auriga-factio": "acme", "x-auriga-role": "guest" },
+  );
   expect(res.status).toBe(403);
 });
 

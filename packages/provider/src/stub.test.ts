@@ -20,9 +20,7 @@ test("stub records every request", async () => {
 
 test("stub throws when exhausted", async () => {
   const stub = new StubProvider();
-  await expect(
-    stub.complete({ model: "stub", max_tokens: 8, messages: [] }),
-  ).rejects.toThrow();
+  await expect(stub.complete({ model: "stub", max_tokens: 8, messages: [] })).rejects.toThrow();
 });
 
 test("stub satisfies the completion contract", async () => {

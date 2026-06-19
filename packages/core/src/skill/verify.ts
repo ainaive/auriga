@@ -1,11 +1,7 @@
 import { b64Decode } from "./bytes";
 import { verifyContentHash } from "./crypto";
 import { computeContentHash, sha256Hex } from "./hash";
-import type {
-  SignedSkillArtifact,
-  SkillVerificationResult,
-  VerificationKey,
-} from "./types";
+import type { SignedSkillArtifact, SkillVerificationResult, VerificationKey } from "./types";
 
 /**
  * Verify a fetched skill before mounting (supply-chain security — never skip).
@@ -40,9 +36,7 @@ export async function verifyArtifact(
     type: artifact.manifest.type,
     skill_md: artifact.skill_md,
     files: artifact.manifest.files,
-    ...(artifact.manifest.entrypoints
-      ? { entrypoints: artifact.manifest.entrypoints }
-      : {}),
+    ...(artifact.manifest.entrypoints ? { entrypoints: artifact.manifest.entrypoints } : {}),
   });
   if (recomputed !== artifact.manifest.content_hash) {
     return { ok: false, reason: "content hash mismatch" };

@@ -10,7 +10,10 @@ export function makeSearchTool(sandbox: Sandbox): Tool {
       type: "object",
       properties: {
         pattern: { type: "string", description: "Regex to search for." },
-        path: { type: "string", description: "File or directory to search (default: workspace root)." },
+        path: {
+          type: "string",
+          description: "File or directory to search (default: workspace root).",
+        },
       },
       required: ["pattern"],
     },
@@ -23,7 +26,8 @@ export function makeSearchTool(sandbox: Sandbox): Tool {
       );
       // grep exit 1 = no matches (not an error)
       if (result.exitCode === 1 && !result.stderr.trim()) return "no matches";
-      if (result.exitCode > 1) return `search error: ${result.stderr.trim() || `exit ${result.exitCode}`}`;
+      if (result.exitCode > 1)
+        return `search error: ${result.stderr.trim() || `exit ${result.exitCode}`}`;
       return truncate(result.stdout) || "no matches";
     },
   };

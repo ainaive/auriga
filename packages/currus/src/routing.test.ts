@@ -6,10 +6,7 @@ import { runLoop } from "./loop";
 import { runJob } from "./job-runner";
 
 test("runLoop uses the plan model for step 1 and the act model afterwards", async () => {
-  const provider = new StubProvider([
-    toolUseResponse("noop", {}),
-    textResponse("done"),
-  ]);
+  const provider = new StubProvider([toolUseResponse("noop", {}), textResponse("done")]);
   await runLoop({
     provider,
     model: "fast",
