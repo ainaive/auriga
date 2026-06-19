@@ -18,7 +18,7 @@ bun run check      # the full QA gate — must be green before you push
 
 `bun run check` is the single source of truth for "is this change OK?". It runs three steps in order:
 
-```
+```text
 bun run check  =  tsc --noEmit          (typecheck the whole workspace)
                →  biome check           (lint + format check)
                →  bun test packages apps scripts
@@ -55,7 +55,7 @@ fixing the issue.
 Commits follow [Conventional Commits](https://www.conventionalcommits.org/) (enforced by commitlint via
 [`commitlint.config.js`](./commitlint.config.js)):
 
-```
+```text
 <type>(<optional scope>): <subject>
 
 <optional body>
@@ -109,6 +109,7 @@ The complete set across all surfaces (grepped from `process.env.*`):
 | `AURIGA_MODEL` | CLI | `claude-sonnet-4-6` | Default model handle for new runs |
 | `AURIGA_SKILLS` | CLI (`skills`) | — | Path to a dev skill registry |
 | `AURIGA_REQUIRE_DOCKER` | CLI | unset | `1` requires an isolated Docker sandbox (no Local fallback) |
+| `USER` | CLI | `cli` | Recorded as the audit actor for `create` / `approve` |
 | `AURIGA_FACTIO` | console | `default` | Tenant the console sends on tenant-scoped calls |
 | `AURIGA_ROLE` | console | `viewer` | Role the console sends on tenant-scoped calls |
 | `PORT` | API | `8787` | HTTP API listen port |

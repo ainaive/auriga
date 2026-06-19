@@ -21,7 +21,7 @@ real skill registry) when constructing the app via `createApp(deps)` — see
 The caller's identity is carried by two headers (in production the API sits behind the platform's
 OIDC/auth gateway, which sets them):
 
-```
+```text
 x-auriga-factio: <tenant>
 x-auriga-role:   <role>
 ```
