@@ -40,9 +40,14 @@ x-auriga-role:   <role>
 | `GET` | `/health` | open | Liveness probe → `{ ok: true }` | `200` |
 | `GET` | `/jobs` | tenant | List the caller's jobs (`listByFactio`) | `200`, `401` |
 | `GET` | `/jobs/:id` | tenant | Fetch one job record | `200`, `401`, `404` |
-| `GET` | `/jobs/:id/trace` | tenant | Fetch the recorded trace | `200`, `401`, `404` |
+| `GET` | `/jobs/:id/trace` | tenant | Fetch the recorded (sealed) trace | `200`, `401`, `404` |
+| `GET` | `/jobs/:id/events` | tenant | **Live run events (SSE)** — backfill + tail (see below) | `200`, `401`, `404`, `501` |
 | `POST` | `/jobs` | tenant | Create a **pending** job (body `{ spec }`) through the RBAC gate | `201`, `400`, `401`, `403` |
 | `POST` | `/jobs/:id/approve` | tenant | Approve a paused job (HITL); audited | `200`, `401`, `404` |
+| `POST` | `/jobs/:id/run` | tenant | Kick a runnable job to the background runner (202) | `202`, `401`, `404`, `409`, `503` |
+| `POST` | `/jobs/:id/cancel` | tenant | Cooperative cancellation (signals an active run, marks an idle one) | `200`, `401`, `404`, `409` |
+| `GET` | `/config` | open | Current RBAC policies + quotas | `200`, `501` |
+| `PUT` | `/config` | admin | Replace policies + quotas (admin role); validated + audited | `200`, `400`, `401`, `403`, `501` |
 | `GET` | `/dashboard` | open | Org-wide totals + per-tenant rollup | `200` |
 | `GET` | `/audit` | open | Audit events; `?factio=F` filters | `200` |
 | `GET` | `/skills` | open | Marketplace; `?q=`, `?factio=` (default `default`), `?role=` (default `viewer`) | `200` |
@@ -51,6 +56,38 @@ x-auriga-role:   <role>
 `POST /jobs` returns `400` for invalid JSON or a spec that fails validation, and `403` (with the
 `PolicyError` message) when the RBAC gate denies the actor/tenant/tools/skills. Running the job is the
 worker/scheduler's responsibility — the API only creates it `pending`.
+
+### Live run events (SSE)
+
+`GET /jobs/:id/events` streams a run **as it happens** so a client (the web console) can render the
+agent working step by step. It is tenant-scoped exactly like `/jobs/:id/trace` (404 cross-tenant), and
+returns `501` if the deployment wired no event bus.
+
+The body is a `text/event-stream`. Each frame carries `id: <seq>` (a per-job monotonic cursor) and a
+JSON [`JobLiveEvent`](../packages/core/src/trace/types.ts) as `data`:
+
+```text
+id: 1
+data: {"kind":"state","state":"planning","reason":null}
+
+id: 2
+data: {"kind":"trace","event":{"type":"tool_call","step":1,"tool":"write_file", ...}}
+
+id: 3
+data: {"kind":"progress","attempt":1,"steps":1,"usage":{...},"cost_usd":0.0007}
+
+id: 4
+data: {"kind":"done","state":"done","reason":"acceptance criteria passed"}
+```
+
+The endpoint **backfills then tails**: it replays events after the `Last-Event-ID` header (or `?after=`
+cursor), then streams live until the terminal `done` envelope, when it closes. A reconnecting browser
+`EventSource` resends `Last-Event-ID` automatically, so backfill is free and gap-free (the per-job `seq`
+dedupes the replay/live overlap). The events come from the [`EventBus`](../packages/habenae/src/event-bus.ts)
+seam — `InMemoryEventBus` in-process for dev, a Postgres `LISTEN/NOTIFY` bus across processes in prod.
+
+The `kind:"trace"` events reuse the same `TraceEvent` union as the sealed `/jobs/:id/trace`, so the live
+timeline and the sealed-trace viewer render from one source.
 
 ### Examples
 
@@ -76,8 +113,10 @@ curl -s 'http://localhost:8787/audit?factio=default'
 curl -s 'http://localhost:8787/skills?q=test'
 ```
 
-The [`apps/console`](../apps/console) Next.js console is a thin read-side client of these routes; it sends
-the actor headers for the tenant-scoped calls and reads the open routes directly.
+The [`apps/console`](../apps/console) Next.js console is the **primary web surface**. It reads/writes
+these routes server-side with the actor headers, and for the live-run experience it exposes a same-origin
+SSE route (`app/api/jobs/[id]/events`) that authenticates from the session cookie and pipes
+`/jobs/:id/events` through to the browser's `EventSource` (no header smuggling from the browser).
 
 ## ChatOps
 
