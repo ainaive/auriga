@@ -15,6 +15,16 @@ infrastructure we glue together. **No agent-orchestration framework owns the con
 Target use case: **Code Agent / AI programming** (e.g. auto-fix a failing test → PR, migrations,
 batch refactors).
 
+## Documentation
+
+Full docs live in [`docs/`](./docs):
+
+- **[Architecture](./docs/architecture.md)** — thesis, components, the job lifecycle + request-flow diagrams, and the swappable seams.
+- **[CLI manual](./docs/cli.md)** — every `auriga` command, with flags, env vars, and examples.
+- **[HTTP API & ChatOps](./docs/api.md)** — routes + the header auth scheme, plus the Slack surface.
+- **[Contributing](./CONTRIBUTING.md)** — setup, the QA gate, git hooks, and commit/PR conventions.
+- **[Skill contract](./packages/core/src/skill/README.md)** — the progressive-disclosure + signing spec.
+
 ## Themed component names
 
 | Name | Latin | Role |
@@ -35,9 +45,10 @@ packages/
   skill-registry/ interim content-addressed + signed skill artifact store
   habenae/        control plane (Phase 1+)
   capella/        observability (Phase 2+)
+  evals/          deterministic trace replay + eval runner (Phase 2+)
   cli/            CLI surface
+  chatops/        chat command layer + Slack adapter (Phase 5)
 apps/
-  worker/         long-running job worker (Phase 1)
   api/            Hono system API (Phase 3+)
   console/        Next.js + Tailwind + shadcn console (Phase 2+, deploys to Vercel)
 ```
@@ -52,13 +63,14 @@ apps/
 
 ```bash
 bun install          # install workspace dependencies
-bun run check        # typecheck (tsc --noEmit) + tests (bun test)
+bun run check        # typecheck (tsc --noEmit) + lint (biome) + tests (bun test)
 docker compose up -d # start Postgres + MinIO (requires Docker)
 ```
 
 ## Status
 
-Under active construction — see `~/.claude/plans/auriga-implementation-starry-nest.md` for the phased plan.
+All five phases (0–5) are complete. See [`docs/`](./docs) for the architecture, CLI, API, and contributor
+guides; the phase-by-phase status below summarizes what each delivered.
 
 - **Phase 0 — contracts + foundation:** ✅ done (job schema, provider seam, skill contract + verify, interim registry, hello-world loop).
 - **Phase 1 — minimum viable harness:** ✅ done. One job type ("fix a failing test → green") runs end to end: submit a spec → Plan-Execute-Verify loop in an isolated sandbox with allowlisted tools → a skill loaded via the full seam (progressive disclosure → fetch → signature-verify → mount) → verification gate runs the acceptance command → `done` only on pass; checkpoint/resume on a fresh worker; token + cost recorded.
@@ -71,7 +83,7 @@ Under active construction — see `~/.claude/plans/auriga-implementation-starry-
 
 ```bash
 bun install
-bun run check                      # typecheck + tests (110+ tests, no Docker needed)
+bun run check                      # typecheck + lint + tests (~197 tests, no Docker needed)
 cd packages/currus && bun run hello   # hello-world loop (stub; set ANTHROPIC_API_KEY for live)
 ```
 
