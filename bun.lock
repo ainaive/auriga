@@ -58,6 +58,14 @@
         "@opentelemetry/sdk-trace-base": "^2.8.0",
       },
     },
+    "packages/chatops": {
+      "name": "@auriga/chatops",
+      "version": "0.0.0",
+      "dependencies": {
+        "@auriga/core": "workspace:*",
+        "@auriga/habenae": "workspace:*",
+      },
+    },
     "packages/cli": {
       "name": "@auriga/cli",
       "version": "0.0.0",
@@ -153,6 +161,8 @@
     "@auriga/api": ["@auriga/api@workspace:apps/api"],
 
     "@auriga/capella": ["@auriga/capella@workspace:packages/capella"],
+
+    "@auriga/chatops": ["@auriga/chatops@workspace:packages/chatops"],
 
     "@auriga/cli": ["@auriga/cli@workspace:packages/cli"],
 
