@@ -69,8 +69,7 @@ export class Scheduler {
       blocked: [],
     };
     const inflight = new Map<string, { factio: string; promise: Promise<string> }>();
-    const factioCount = (f: string) =>
-      [...inflight.values()].filter((v) => v.factio === f).length;
+    const factioCount = (f: string) => [...inflight.values()].filter((v) => v.factio === f).length;
 
     for (;;) {
       const pending = (await this.opts.store.list()).filter(

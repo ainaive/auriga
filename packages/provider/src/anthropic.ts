@@ -27,8 +27,7 @@ export class AnthropicProvider implements ModelProvider {
 
   constructor(opts: AnthropicProviderOptions = {}) {
     this.client =
-      opts.client ??
-      new Anthropic({ apiKey: opts.apiKey ?? process.env.ANTHROPIC_API_KEY });
+      opts.client ?? new Anthropic({ apiKey: opts.apiKey ?? process.env.ANTHROPIC_API_KEY });
   }
 
   async complete(req: GenerateRequest): Promise<ModelResponse> {

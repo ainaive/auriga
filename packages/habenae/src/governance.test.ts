@@ -28,7 +28,12 @@ const policy = new InMemoryPolicy([
 
 test("a permitted actor can submit", async () => {
   const store = new InMemoryJobStore();
-  const rec = await submitJob({ store, policy, spec: spec(), actor: { factio: "acme", role: "dev" } });
+  const rec = await submitJob({
+    store,
+    policy,
+    spec: spec(),
+    actor: { factio: "acme", role: "dev" },
+  });
   expect(rec.id).toBe("j");
 });
 
@@ -42,7 +47,12 @@ test("cross-tenant submission is denied", async () => {
 test("unknown factio is denied", async () => {
   const store = new InMemoryJobStore();
   await expect(
-    submitJob({ store, policy, spec: spec({ factio: "ghost" }), actor: { factio: "ghost", role: "dev" } }),
+    submitJob({
+      store,
+      policy,
+      spec: spec({ factio: "ghost" }),
+      actor: { factio: "ghost", role: "dev" },
+    }),
   ).rejects.toBeInstanceOf(PolicyError);
 });
 

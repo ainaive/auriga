@@ -47,6 +47,8 @@ export interface Trace {
 /** The recorded model responses, in order — the input to deterministic replay. */
 export function recordedResponses(trace: Trace): ModelResponse[] {
   return trace.events
-    .filter((e): e is Extract<TraceEvent, { type: "model_response" }> => e.type === "model_response")
+    .filter(
+      (e): e is Extract<TraceEvent, { type: "model_response" }> => e.type === "model_response",
+    )
     .map((e) => e.response);
 }

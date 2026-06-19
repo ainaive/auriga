@@ -81,18 +81,14 @@ test("the mapped response satisfies the completion contract", async () => {
 
 // Live test — only runs when an API key is present.
 describe.if(Boolean(process.env.ANTHROPIC_API_KEY))("AnthropicProvider (live)", () => {
-  test(
-    "completes against the real API",
-    async () => {
-      const provider = new AnthropicProvider();
-      const res = await provider.complete({
-        model: MODELS.haiku,
-        max_tokens: 32,
-        messages: [userText("Reply with exactly one word: pong")],
-      });
-      validateModelResponse(res);
-      expect(textOf(res.content).length).toBeGreaterThan(0);
-    },
-    30_000,
-  );
+  test("completes against the real API", async () => {
+    const provider = new AnthropicProvider();
+    const res = await provider.complete({
+      model: MODELS.haiku,
+      max_tokens: 32,
+      messages: [userText("Reply with exactly one word: pong")],
+    });
+    validateModelResponse(res);
+    expect(textOf(res.content).length).toBeGreaterThan(0);
+  }, 30_000);
 });

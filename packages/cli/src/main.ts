@@ -145,7 +145,12 @@ async function create(store: FileJobStore, args: string[]): Promise<void> {
     return;
   }
   await store.create(spec);
-  await safeAudit(auditLog(), { factio: spec.factio, actor: ACTOR, action: "job.created", job_id: spec.id });
+  await safeAudit(auditLog(), {
+    factio: spec.factio,
+    actor: ACTOR,
+    action: "job.created",
+    job_id: spec.id,
+  });
   console.log(`created ${spec.id} (pending) — run \`auriga schedule\` to execute`);
 }
 
@@ -192,7 +197,12 @@ async function approve(store: FileJobStore, args: string[]): Promise<void> {
   const rec = await requireJob(store, args[0]);
   if (!rec) return;
   await store.update(rec.id, { approved: true });
-  await safeAudit(auditLog(), { factio: rec.spec.factio, actor: ACTOR, action: "job.approved", job_id: rec.id });
+  await safeAudit(auditLog(), {
+    factio: rec.spec.factio,
+    actor: ACTOR,
+    action: "job.approved",
+    job_id: rec.id,
+  });
   console.log(`approved ${rec.id} — run: auriga run ${rec.id}`);
 }
 
@@ -275,9 +285,13 @@ async function evalCmd(args: string[]): Promise<void> {
   const { scores, summary } = await runEvals(cases, driver);
   for (const s of scores) {
     const mark = s.matches ? "✓" : "✗";
-    console.log(`${mark} ${s.job_id}  replay=${s.replay_state} recorded=${s.recorded_state}${s.error ? ` (${s.error})` : ""}`);
+    console.log(
+      `${mark} ${s.job_id}  replay=${s.replay_state} recorded=${s.recorded_state}${s.error ? ` (${s.error})` : ""}`,
+    );
   }
-  const cost = Number.isFinite(summary.total_cost_usd) ? `~$${summary.total_cost_usd.toFixed(4)}` : "n/a";
+  const cost = Number.isFinite(summary.total_cost_usd)
+    ? `~$${summary.total_cost_usd.toFixed(4)}`
+    : "n/a";
   console.log(
     `\n${summary.matched}/${summary.total} matched · ${summary.done} done · ${summary.verify_passed} verified · cost ${cost}`,
   );
@@ -334,11 +348,16 @@ async function skills(args: string[]): Promise<void> {
     return;
   }
   for (const e of entries) {
-    console.log(`${e.name}@${e.version}  uses=${e.stats.uses} ok=${e.stats.successes}  ${e.description}`);
+    console.log(
+      `${e.name}@${e.version}  uses=${e.stats.uses} ok=${e.stats.successes}  ${e.description}`,
+    );
   }
 }
 
-async function requireJob(store: FileJobStore, id: string | undefined): Promise<JobRecord | undefined> {
+async function requireJob(
+  store: FileJobStore,
+  id: string | undefined,
+): Promise<JobRecord | undefined> {
   if (!id) {
     console.error("usage: auriga <run|approve|status|result|trace> <id>");
     process.exitCode = 1;

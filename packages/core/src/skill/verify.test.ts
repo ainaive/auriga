@@ -32,7 +32,11 @@ async function buildSignedArtifact(kp: Ed25519Keypair): Promise<SignedSkillArtif
   };
 }
 
-async function setup(): Promise<{ kp: Ed25519Keypair; keys: VerificationKey[]; artifact: SignedSkillArtifact }> {
+async function setup(): Promise<{
+  kp: Ed25519Keypair;
+  keys: VerificationKey[];
+  artifact: SignedSkillArtifact;
+}> {
   const kp = await generateSigningKeypair("platform-1");
   const artifact = await buildSignedArtifact(kp);
   return { kp, keys: [{ key_id: kp.key_id, public_key: kp.public_key }], artifact };

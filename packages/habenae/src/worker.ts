@@ -186,7 +186,8 @@ export class Worker {
           ),
         );
         for (const r of results) {
-          if (r.status === "rejected") console.warn(`[auriga] skill usage feedback failed: ${r.reason}`);
+          if (r.status === "rejected")
+            console.warn(`[auriga] skill usage feedback failed: ${r.reason}`);
         }
       }
       return result;

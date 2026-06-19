@@ -1,6 +1,6 @@
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { Pool } from "pg";
+import type { Pool } from "pg";
 import { newId } from "@auriga/core";
 
 /** An immutable governance/audit record. */
@@ -39,7 +39,9 @@ export async function safeAudit(audit: AuditLog | undefined, event: NewAuditEven
   try {
     await audit.record(event);
   } catch (err) {
-    console.warn(`[auriga] audit write failed: ${err instanceof Error ? err.message : String(err)}`);
+    console.warn(
+      `[auriga] audit write failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 }
 
@@ -153,7 +155,9 @@ export class PostgresAuditLog implements AuditLog {
   async listByFactio(factio: string, limit?: number): Promise<AuditEvent[]> {
     const res =
       limit === undefined
-        ? await this.pool.query(`select * from audit_events where factio = $1 order by ts desc`, [factio])
+        ? await this.pool.query(`select * from audit_events where factio = $1 order by ts desc`, [
+            factio,
+          ])
         : await this.pool.query(
             `select * from audit_events where factio = $1 order by ts desc limit $2`,
             [factio, limit],

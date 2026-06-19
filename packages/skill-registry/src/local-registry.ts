@@ -107,7 +107,12 @@ export class LocalSkillRegistry implements SkillRegistry, SkillUsageSink {
       if (ctx.allowed_skills && !ctx.allowed_skills.includes(name)) continue;
       const meta = await this.readMeta(name);
       if (!meta) continue;
-      out.push({ name: meta.name, description: meta.description, version: meta.latest, type: meta.type });
+      out.push({
+        name: meta.name,
+        description: meta.description,
+        version: meta.latest,
+        type: meta.type,
+      });
     }
     out.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
     return out;
@@ -161,7 +166,9 @@ export class LocalSkillRegistry implements SkillRegistry, SkillUsageSink {
 
   private async readUsage(name: string): Promise<UsageRecord | undefined> {
     try {
-      return JSON.parse(await readFile(join(this.baseDir, name, "usage.json"), "utf8")) as UsageRecord;
+      return JSON.parse(
+        await readFile(join(this.baseDir, name, "usage.json"), "utf8"),
+      ) as UsageRecord;
     } catch (err) {
       // Only "absent" is benign; surface corruption/permission errors so we don't
       // silently reinitialize and overwrite valid historical stats.
@@ -180,8 +187,11 @@ export class LocalSkillRegistry implements SkillRegistry, SkillUsageSink {
     const meta: SkillMeta = {
       name: bundle.name,
       // description/type reflect the latest published version
-      description: latest === bundle.version ? bundle.description : existing?.description ?? bundle.description,
-      type: latest === bundle.version ? bundle.type : existing?.type ?? bundle.type,
+      description:
+        latest === bundle.version
+          ? bundle.description
+          : (existing?.description ?? bundle.description),
+      type: latest === bundle.version ? bundle.type : (existing?.type ?? bundle.type),
       versions,
       latest,
     };

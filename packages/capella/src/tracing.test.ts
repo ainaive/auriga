@@ -12,7 +12,11 @@ function sampleTrace(): Trace {
     job_id: "job_x",
     model: "claude-sonnet-4-6",
     events: [
-      { type: "model_response", step: 1, response: textResponse("done", { usage: { input_tokens: 5, output_tokens: 2 } }) },
+      {
+        type: "model_response",
+        step: 1,
+        response: textResponse("done", { usage: { input_tokens: 5, output_tokens: 2 } }),
+      },
       { type: "tool_call", step: 1, tool: "write_file", input: {}, output: "ok", isError: false },
       { type: "verify", attempt: 1, passed: true, criteria: [] },
     ],

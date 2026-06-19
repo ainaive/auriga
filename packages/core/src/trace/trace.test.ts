@@ -23,7 +23,14 @@ test("recordedResponses extracts model responses in order", () => {
   const r2 = textResponse("done");
   const t = trace([
     { type: "model_response", step: 1, response: r1 },
-    { type: "tool_call", step: 1, tool: "write_file", input: { path: "a" }, output: "ok", isError: false },
+    {
+      type: "tool_call",
+      step: 1,
+      tool: "write_file",
+      input: { path: "a" },
+      output: "ok",
+      isError: false,
+    },
     { type: "verify", attempt: 1, passed: false, criteria: [] },
     { type: "model_response", step: 2, response: r2 },
   ]);
@@ -34,5 +41,7 @@ test("recordedResponses extracts model responses in order", () => {
 });
 
 test("recordedResponses is empty when there are no model responses", () => {
-  expect(recordedResponses(trace([{ type: "compaction", dropped: 3, before: 9, after: 4 }]))).toEqual([]);
+  expect(
+    recordedResponses(trace([{ type: "compaction", dropped: 3, before: 9, after: 4 }])),
+  ).toEqual([]);
 });

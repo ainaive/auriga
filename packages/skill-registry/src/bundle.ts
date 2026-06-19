@@ -38,9 +38,7 @@ const RESERVED = new Set(["skill.json", "SKILL.md"]);
  *   <anything else>   (bundled reference files / scripts)
  */
 export async function loadBundleFromDir(dir: string): Promise<SkillBundleInput> {
-  const descriptor = JSON.parse(
-    await readFile(join(dir, "skill.json"), "utf8"),
-  ) as SkillDescriptor;
+  const descriptor = JSON.parse(await readFile(join(dir, "skill.json"), "utf8")) as SkillDescriptor;
   const skill_md = await readFile(join(dir, "SKILL.md"), "utf8");
 
   const files: SkillBundleFile[] = [];

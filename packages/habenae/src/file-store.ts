@@ -51,7 +51,9 @@ export class FileJobStore implements JobStore {
     };
     try {
       // `wx` fails if the file exists — matches Postgres's primary-key rejection.
-      await writeFile(this.jobPath(spec.id), `${JSON.stringify(record, null, 2)}\n`, { flag: "wx" });
+      await writeFile(this.jobPath(spec.id), `${JSON.stringify(record, null, 2)}\n`, {
+        flag: "wx",
+      });
     } catch (err) {
       if ((err as { code?: string }).code === "EEXIST") {
         throw new Error(`job already exists: ${spec.id}`);

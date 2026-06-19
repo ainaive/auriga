@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DockerSandboxDriver } from "./docker";
 import { LocalSandboxDriver } from "./local";
-import type { SandboxDriver } from "./types";
+import type { SandboxDriver, SandboxSnapshot } from "./types";
 
 /** Shared behavior every driver must satisfy. */
 function sandboxContract(makeDriver: () => SandboxDriver) {
@@ -54,7 +54,7 @@ function sandboxContract(makeDriver: () => SandboxDriver) {
   test("snapshot → restore into a new sandbox preserves files", async () => {
     const driver = makeDriver();
     const first = await driver.create({ workspace: { kind: "empty" } });
-    let snapshot;
+    let snapshot: SandboxSnapshot | undefined;
     try {
       await first.writeFile("src/a.ts", "const a = 1;");
       await first.writeFile("notes.md", "hello");

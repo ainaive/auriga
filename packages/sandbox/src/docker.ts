@@ -30,7 +30,8 @@ function containerPath(base: string, rel: string): string {
 }
 
 function assertOk(action: string, r: ExecResult): void {
-  if (r.exitCode !== 0) throw new Error(`${action} failed: ${r.stderr.trim() || `exit ${r.exitCode}`}`);
+  if (r.exitCode !== 0)
+    throw new Error(`${action} failed: ${r.stderr.trim() || `exit ${r.exitCode}`}`);
 }
 
 /**
@@ -47,7 +48,10 @@ class DockerSandbox implements Sandbox {
     private readonly containerId: string,
   ) {}
 
-  private docker(args: string[], opts: { input?: string; maxBytes?: number } = {}): Promise<ExecResult> {
+  private docker(
+    args: string[],
+    opts: { input?: string; maxBytes?: number } = {},
+  ): Promise<ExecResult> {
     return spawnCapture("docker", args, opts);
   }
 
@@ -71,14 +75,22 @@ class DockerSandbox implements Sandbox {
       maxBytes: FILE_READ_CAP,
     });
     if (r.exitCode !== 0) throw new Error(`readFile failed: ${path}: ${r.stderr.trim()}`);
-    if (r.truncated) throw new Error(`readFile truncated (file exceeds ${FILE_READ_CAP} bytes): ${path}`);
+    if (r.truncated)
+      throw new Error(`readFile truncated (file exceeds ${FILE_READ_CAP} bytes): ${path}`);
     return r.stdout;
   }
 
   async writeFile(path: string, content: string): Promise<void> {
     const full = containerPath(WORKDIR, path);
     const r = await this.docker(
-      ["exec", "-i", this.containerId, "sh", "-c", `mkdir -p "$(dirname ${shq(full)})" && cat > ${shq(full)}`],
+      [
+        "exec",
+        "-i",
+        this.containerId,
+        "sh",
+        "-c",
+        `mkdir -p "$(dirname ${shq(full)})" && cat > ${shq(full)}`,
+      ],
       { input: content },
     );
     assertOk(`writeFile ${path}`, r);
@@ -108,7 +120,14 @@ class DockerSandbox implements Sandbox {
       const full = containerPath(WORKDIR, `${rel}/${path}`);
       const b64 = Buffer.from(bytes).toString("base64");
       const r = await this.docker(
-        ["exec", "-i", this.containerId, "sh", "-c", `mkdir -p "$(dirname ${shq(full)})" && base64 -d > ${shq(full)}`],
+        [
+          "exec",
+          "-i",
+          this.containerId,
+          "sh",
+          "-c",
+          `mkdir -p "$(dirname ${shq(full)})" && base64 -d > ${shq(full)}`,
+        ],
         { input: b64 },
       );
       assertOk(`mountSkill ${full}`, r);
@@ -134,7 +153,8 @@ class DockerSandbox implements Sandbox {
         maxBytes: FILE_READ_CAP,
       });
       assertOk(`snapshot:read ${rel}`, r);
-      if (r.truncated) throw new Error(`snapshot truncated (file exceeds ${FILE_READ_CAP} bytes): ${rel}`);
+      if (r.truncated)
+        throw new Error(`snapshot truncated (file exceeds ${FILE_READ_CAP} bytes): ${rel}`);
       out[rel] = r.stdout.replace(/\s+/g, "");
     }
     return out;
@@ -185,7 +205,10 @@ export class DockerSandboxDriver implements SandboxDriver {
     const containerId = run.stdout.trim();
 
     try {
-      assertOk("mkdir workdir", await spawnCapture("docker", ["exec", containerId, "mkdir", "-p", WORKDIR]));
+      assertOk(
+        "mkdir workdir",
+        await spawnCapture("docker", ["exec", containerId, "mkdir", "-p", WORKDIR]),
+      );
       const ws = opts.workspace;
       if (ws?.kind === "dir") {
         assertOk(
@@ -199,7 +222,14 @@ export class DockerSandboxDriver implements SandboxDriver {
             `restore ${rel}`,
             await spawnCapture(
               "docker",
-              ["exec", "-i", containerId, "sh", "-c", `mkdir -p "$(dirname ${shq(full)})" && base64 -d > ${shq(full)}`],
+              [
+                "exec",
+                "-i",
+                containerId,
+                "sh",
+                "-c",
+                `mkdir -p "$(dirname ${shq(full)})" && base64 -d > ${shq(full)}`,
+              ],
               { input: b64 },
             ),
           );

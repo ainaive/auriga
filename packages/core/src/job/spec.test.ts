@@ -38,9 +38,9 @@ test("non-positive budget is rejected", () => {
 });
 
 test("unknown acceptance criterion kind is rejected", () => {
-  expect(() =>
-    parseJobSpec({ ...validSpec, acceptance_criteria: [{ kind: "magic" }] }),
-  ).toThrow(ValidationError);
+  expect(() => parseJobSpec({ ...validSpec, acceptance_criteria: [{ kind: "magic" }] })).toThrow(
+    ValidationError,
+  );
 });
 
 test("JobSpec emits a JSON schema covering the core fields", () => {

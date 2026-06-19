@@ -25,7 +25,9 @@ function spec(id: string): JobSpec {
 
 /** Record a trace by running the fixture job once with a scripted stub. */
 async function recordTrace(id: string): Promise<Trace> {
-  const sandbox = await new LocalSandboxDriver().create({ workspace: { kind: "dir", path: FIXTURE } });
+  const sandbox = await new LocalSandboxDriver().create({
+    workspace: { kind: "dir", path: FIXTURE },
+  });
   const recorder = new Recorder(id, "stub");
   try {
     const result = await runJob({
@@ -51,37 +53,29 @@ async function recordTrace(id: string): Promise<Trace> {
   }
 }
 
-test(
-  "replay reproduces the recorded outcome deterministically",
-  async () => {
-    const trace = await recordTrace("job_eval");
-    expect(trace.result.state).toBe("done");
+test("replay reproduces the recorded outcome deterministically", async () => {
+  const trace = await recordTrace("job_eval");
+  expect(trace.result.state).toBe("done");
 
-    const score = await runEval({ spec: spec("job_eval"), trace }, new LocalSandboxDriver());
-    expect(score.replay_state).toBe("done");
-    expect(score.matches).toBe(true);
-    expect(score.verify_passed).toBe(true);
-  },
-  30_000,
-);
+  const score = await runEval({ spec: spec("job_eval"), trace }, new LocalSandboxDriver());
+  expect(score.replay_state).toBe("done");
+  expect(score.matches).toBe(true);
+  expect(score.verify_passed).toBe(true);
+}, 30_000);
 
-test(
-  "batch summary aggregates replay scores",
-  async () => {
-    const trace = await recordTrace("job_batch");
-    const { summary } = await runEvals(
-      [
-        { spec: spec("a"), trace },
-        { spec: spec("b"), trace },
-      ],
-      new LocalSandboxDriver(),
-    );
-    expect(summary.total).toBe(2);
-    expect(summary.matched).toBe(2);
-    expect(summary.done).toBe(2);
-  },
-  30_000,
-);
+test("batch summary aggregates replay scores", async () => {
+  const trace = await recordTrace("job_batch");
+  const { summary } = await runEvals(
+    [
+      { spec: spec("a"), trace },
+      { spec: spec("b"), trace },
+    ],
+    new LocalSandboxDriver(),
+  );
+  expect(summary.total).toBe(2);
+  expect(summary.matched).toBe(2);
+  expect(summary.done).toBe(2);
+}, 30_000);
 
 test("replay flags divergence when the trace lacks enough responses", async () => {
   // One tool response but no closing text → the loop will ask for another
@@ -90,7 +84,11 @@ test("replay flags divergence when the trace lacks enough responses", async () =
     job_id: "job_diverge",
     model: "stub",
     events: [
-      { type: "model_response", step: 1, response: toolUseResponse("write_file", { path: "x.txt", content: "x" }) },
+      {
+        type: "model_response",
+        step: 1,
+        response: toolUseResponse("write_file", { path: "x.txt", content: "x" }),
+      },
     ],
     result: {
       state: "done",

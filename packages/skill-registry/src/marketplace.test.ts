@@ -7,7 +7,9 @@ import { loadBundleFromDir } from "./bundle";
 import { openDevRegistry } from "./local-registry";
 import { searchSkills } from "./marketplace";
 
-const EXAMPLE_SKILL_DIR = fileURLToPath(new URL("../../../skills/fix-failing-test", import.meta.url));
+const EXAMPLE_SKILL_DIR = fileURLToPath(
+  new URL("../../../skills/fix-failing-test", import.meta.url),
+);
 
 test("searchSkills joins metadata with stats, ranks by adoption, and filters by query", async () => {
   const dir = await mkdtemp(join(tmpdir(), "auriga-market-"));
@@ -32,7 +34,11 @@ test("searchSkills joins metadata with stats, ranks by adoption, and filters by 
     expect(all.map((e) => e.name)).toEqual(["fix-failing-test", "lint"]); // ranked by uses
     expect(all[0]?.stats.uses).toBe(2);
 
-    const filtered = await searchSkills(deps, { factio: "default", role: "dev" }, { query: "lint" });
+    const filtered = await searchSkills(
+      deps,
+      { factio: "default", role: "dev" },
+      { query: "lint" },
+    );
     expect(filtered.map((e) => e.name)).toEqual(["lint"]);
   } finally {
     await rm(dir, { recursive: true, force: true });
