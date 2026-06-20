@@ -45,6 +45,34 @@ function toSeq(raw: string | undefined): number {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
 }
 
+/** Cap a single workspace file response so a multi-MB snapshot can't ship at once. */
+const MAX_FILE_BYTES = 256 * 1024;
+
+/** Decoded byte length of a base64 string without materializing the bytes. */
+function base64Bytes(b64: string): number {
+  if (b64.length === 0) return 0;
+  const padding = b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0;
+  return Math.floor((b64.length * 3) / 4) - padding;
+}
+
+/** Decode a base64 workspace file: UTF-8 text, or base64 passthrough for binary (NUL byte). */
+function decodeFile(b64: string): {
+  bytes: number;
+  truncated: boolean;
+  encoding: "utf8" | "base64";
+  content: string;
+} {
+  const buf = Buffer.from(b64, "base64");
+  const bytes = buf.length;
+  const truncated = bytes > MAX_FILE_BYTES;
+  const slice = truncated ? buf.subarray(0, MAX_FILE_BYTES) : buf;
+  // NUL byte ⇒ treat as binary (text files don't contain NUL); avoids garbled UTF-8.
+  if (buf.includes(0)) {
+    return { bytes, truncated, encoding: "base64", content: slice.toString("base64") };
+  }
+  return { bytes, truncated, encoding: "utf8", content: slice.toString("utf8") };
+}
+
 /** Caller identity from headers. In production the API sits behind the platform's
  *  OIDC/auth gateway; these headers carry the resolved tenant + role. */
 function actorOf(c: Context): { factio: string; role: string } | undefined {
@@ -87,6 +115,38 @@ export function createApp(deps: ApiDeps): Hono {
     if (!rec || rec.spec.factio !== actor.factio) return c.json({ error: "not found" }, 404);
     const trace = await deps.store.loadTrace(c.req.param("id"));
     return trace ? c.json(trace) : c.json({ error: "no trace" }, 404);
+  });
+
+  // Workspace inspection: the latest checkpoint snapshot the worker already persists.
+  // Tenant-scoped like /trace. The manifest lists paths + sizes only (no base64); the
+  // file route decodes a single file (capped; binary → base64 passthrough).
+  app.get("/jobs/:id/workspace", async (c) => {
+    const actor = actorOf(c);
+    if (!actor) return c.json({ error: "auth required" }, 401);
+    const id = c.req.param("id");
+    const rec = await deps.store.get(id);
+    if (!rec || rec.spec.factio !== actor.factio) return c.json({ error: "not found" }, 404);
+    const cp = await deps.store.loadCheckpoint(id);
+    const files = cp
+      ? Object.entries(cp.workspace)
+          .map(([path, b64]) => ({ path, bytes: base64Bytes(b64) }))
+          .sort((a, b) => a.path.localeCompare(b.path))
+      : [];
+    return c.json({ job_id: id, files });
+  });
+
+  app.get("/jobs/:id/workspace/file", async (c) => {
+    const actor = actorOf(c);
+    if (!actor) return c.json({ error: "auth required" }, 401);
+    const id = c.req.param("id");
+    const rec = await deps.store.get(id);
+    if (!rec || rec.spec.factio !== actor.factio) return c.json({ error: "not found" }, 404);
+    const path = c.req.query("path");
+    if (!path) return c.json({ error: "path required" }, 400);
+    const cp = await deps.store.loadCheckpoint(id);
+    const b64 = cp?.workspace[path];
+    if (b64 === undefined) return c.json({ error: "file not found" }, 404);
+    return c.json({ path, ...decodeFile(b64) });
   });
 
   // Live run events (SSE). Tenant-scoped like /jobs/:id/trace. Backfills via

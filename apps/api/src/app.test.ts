@@ -252,6 +252,66 @@ test("POST /jobs/:id/cancel is 409 for a terminal job and 404 cross-tenant", asy
   expect((await post(app, "/jobs/job_api/cancel", {})).status).toBe(401);
 });
 
+test("GET /jobs/:id/workspace lists the latest checkpoint files; /file decodes one", async () => {
+  const d = deps();
+  const app = createApp(d);
+  await d.store.create(spec);
+  await d.store.saveCheckpoint({
+    job_id: "job_api",
+    lifecycle_state: "running",
+    messages: [],
+    usage: { input_tokens: 0, output_tokens: 0 },
+    steps: 1,
+    next_attempt: 2,
+    loaded_skills: [],
+    workspace: {
+      "answer.txt": Buffer.from("hi").toString("base64"),
+      "dir/b.json": Buffer.from("{}").toString("base64"),
+      "bin.dat": Buffer.from([0, 1, 2]).toString("base64"),
+    },
+  });
+
+  const man = (await (await app.request("/jobs/job_api/workspace", { headers: AUTH })).json()) as {
+    files: { path: string; bytes: number }[];
+  };
+  expect(man.files.map((f) => f.path)).toEqual(["answer.txt", "bin.dat", "dir/b.json"]); // sorted
+  expect(man.files.find((f) => f.path === "answer.txt")?.bytes).toBe(2);
+
+  const txt = await (
+    await app.request("/jobs/job_api/workspace/file?path=answer.txt", { headers: AUTH })
+  ).json();
+  expect(txt).toMatchObject({ encoding: "utf8", content: "hi", truncated: false });
+
+  const bin = (await (
+    await app.request("/jobs/job_api/workspace/file?path=bin.dat", { headers: AUTH })
+  ).json()) as { encoding: string };
+  expect(bin.encoding).toBe("base64");
+});
+
+test("workspace: empty manifest w/o checkpoint; 404 unknown file/cross-tenant; 400 no path; 401", async () => {
+  const d = deps();
+  const app = createApp(d);
+  await d.store.create(spec);
+
+  const man = (await (await app.request("/jobs/job_api/workspace", { headers: AUTH })).json()) as {
+    files: unknown[];
+  };
+  expect(man.files).toEqual([]); // no checkpoint yet → empty, not 404
+
+  expect(
+    (await app.request("/jobs/job_api/workspace/file?path=nope.txt", { headers: AUTH })).status,
+  ).toBe(404);
+  expect((await app.request("/jobs/job_api/workspace/file", { headers: AUTH })).status).toBe(400);
+  expect((await app.request("/jobs/job_api/workspace")).status).toBe(401);
+  expect(
+    (
+      await app.request("/jobs/job_api/workspace", {
+        headers: { "x-auriga-factio": "other", "x-auriga-role": "dev" },
+      })
+    ).status,
+  ).toBe(404);
+});
+
 // Parse Hono SSE text into [{ id, data }] frames.
 function sseFrames(body: string): Array<{ id: number; data: { kind: string } }> {
   return body

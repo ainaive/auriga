@@ -49,6 +49,24 @@ export interface Trace {
   result: { state: string; reason: string };
 }
 
+export interface WorkspaceEntry {
+  path: string;
+  bytes: number;
+}
+
+export interface WorkspaceManifest {
+  job_id: string;
+  files: WorkspaceEntry[];
+}
+
+export interface WorkspaceFile {
+  path: string;
+  bytes: number;
+  truncated: boolean;
+  encoding: "utf8" | "base64";
+  content: string;
+}
+
 export interface Skill {
   name: string;
   version: string;
@@ -87,6 +105,8 @@ export const api = {
   jobs: () => get<Job[]>("/jobs", true),
   job: (id: string) => get<Job>(`/jobs/${encodeURIComponent(id)}`, true),
   trace: (id: string) => get<Trace>(`/jobs/${encodeURIComponent(id)}/trace`, true),
+  workspace: (id: string) =>
+    get<WorkspaceManifest>(`/jobs/${encodeURIComponent(id)}/workspace`, true),
   skills: () => get<Skill[]>("/skills"),
   config: () => get<AurigaConfig>("/config"),
 };

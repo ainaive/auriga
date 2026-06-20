@@ -5,7 +5,8 @@ import { CancelButton } from "@/components/cancel-button";
 import { LiveRun } from "@/components/live-run";
 import { PauseButton } from "@/components/pause-button";
 import { RunButton } from "@/components/run-button";
-import { RunTimeline } from "@/components/run-timeline";
+import { RunTimelinePanel } from "@/components/run-timeline-panel";
+import { WorkspaceViewer } from "@/components/workspace-viewer";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardTitle } from "@/components/ui/card";
 import { ACTIVE_STATES, TERMINAL_STATES } from "@/lib/types";
@@ -23,6 +24,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
   const live = active || job.state === "pending";
   // Only the resting branch uses the sealed trace — skip the fetch for live runs.
   const trace = live ? null : await api.trace(id);
+  const ws = await api.workspace(id);
   const needsApproval = job.state === "paused" && !!job.spec.require_approval && !job.approved;
   const resumable = job.state === "paused" && !needsApproval;
   // Runnable: not active, not done, not awaiting approval (pending/failed/cancelled re-run; paused resume).
@@ -67,9 +69,16 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
             }}
           />
         ) : (
-          <RunTimeline events={trace?.events ?? []} />
+          <RunTimelinePanel events={trace?.events ?? []} />
         )}
       </Card>
+
+      {ws && ws.files.length > 0 && (
+        <Card>
+          <CardTitle>Workspace</CardTitle>
+          <WorkspaceViewer jobId={job.id} files={ws.files} />
+        </Card>
+      )}
     </div>
   );
 }

@@ -3,7 +3,7 @@
 import { Radio } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useReducer, useRef } from "react";
-import { RunTimeline } from "@/components/run-timeline";
+import { RunTimelinePanel } from "@/components/run-timeline-panel";
 import { Badge } from "@/components/ui/badge";
 import { initLiveRun, reduceLiveRun, type LiveRunSeed, type LiveRunState } from "@/lib/live-run";
 import type { JobLiveEvent } from "@/lib/types";
@@ -48,7 +48,7 @@ export function LiveRun({ jobId, seed }: { jobId: string; seed: LiveRunSeed }) {
   return (
     <div className="space-y-3">
       <LiveStatus state={state} />
-      <RunTimeline events={state.trace} />
+      <RunTimelinePanel events={state.trace} />
     </div>
   );
 }
