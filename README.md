@@ -121,11 +121,20 @@ auriga submit job.json
 Without Docker, the CLI falls back to the non-isolated Local sandbox (with a warning);
 set `AURIGA_REQUIRE_DOCKER=1` to require real isolation.
 
-Run the control-plane API, then the web console (the primary surface):
+Run the whole web stack (control-plane API + console) with one command:
 
 ```bash
-AURIGA_HOME=.auriga/jobs bun apps/api/src/index.ts   # control-plane API on http://localhost:8787
-cd apps/console && bun run dev                        # web console on http://localhost:3000
+bun run dev   # API on :8787 (stub runner) + console on :3000 — open http://localhost:3000
+```
+
+`bun run dev` defaults the API to a deterministic **stub runner** (no API key / Docker needed): sign in,
+create a job whose acceptance criterion is `file_exists: answer.txt`, click **Run**, and watch the live
+timeline stream to `done`. For real agent runs, start the API with a key instead (then the console
+separately):
+
+```bash
+ANTHROPIC_API_KEY=… AURIGA_HOME=.auriga/jobs bun apps/api/src/index.ts   # real runner on :8787
+cd apps/console && bun run dev                                            # console on :3000
 ```
 
 The console reads/writes the API and streams live runs over SSE; open a job to watch the agent work
