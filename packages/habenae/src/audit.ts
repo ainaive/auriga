@@ -106,6 +106,7 @@ export class FileAuditLog implements AuditLog {
 export const AUDIT_SCHEMA_SQL = `
 create table if not exists audit_events (
   id      text primary key,
+  seq     bigserial not null,
   ts      timestamptz not null default now(),
   factio  text not null,
   actor   text,
@@ -113,7 +114,14 @@ create table if not exists audit_events (
   job_id  text,
   detail  text
 );
-create index if not exists audit_factio_idx on audit_events (factio, ts desc);
+-- Monotonic insertion order. \`ts\` is millisecond-precision, so same-millisecond
+-- events tie under \`order by ts\` and "recent-first" becomes non-deterministic;
+-- \`seq\` (a bigserial) gives a stable ordering. Additive for databases created
+-- before the column existed — ADD COLUMN backfills via a table rewrite, which is DDL
+-- and does not trip the append-only UPDATE trigger.
+alter table audit_events add column if not exists seq bigserial;
+create index if not exists audit_seq_idx on audit_events (seq desc);
+create index if not exists audit_factio_seq_idx on audit_events (factio, seq desc);
 
 -- Enforce append-only at the database layer: reject UPDATE/DELETE.
 create or replace function prevent_audit_events_mutation() returns trigger
@@ -147,19 +155,19 @@ export class PostgresAuditLog implements AuditLog {
   async list(limit?: number): Promise<AuditEvent[]> {
     const res =
       limit === undefined
-        ? await this.pool.query(`select * from audit_events order by ts desc`)
-        : await this.pool.query(`select * from audit_events order by ts desc limit $1`, [limit]);
+        ? await this.pool.query(`select * from audit_events order by seq desc`)
+        : await this.pool.query(`select * from audit_events order by seq desc limit $1`, [limit]);
     return res.rows.map(rowToEvent);
   }
 
   async listByFactio(factio: string, limit?: number): Promise<AuditEvent[]> {
     const res =
       limit === undefined
-        ? await this.pool.query(`select * from audit_events where factio = $1 order by ts desc`, [
+        ? await this.pool.query(`select * from audit_events where factio = $1 order by seq desc`, [
             factio,
           ])
         : await this.pool.query(
-            `select * from audit_events where factio = $1 order by ts desc limit $2`,
+            `select * from audit_events where factio = $1 order by seq desc limit $2`,
             [factio, limit],
           );
     return res.rows.map(rowToEvent);
