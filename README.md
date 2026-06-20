@@ -69,9 +69,9 @@ docker compose up -d # start Postgres + MinIO (requires Docker)
 
 ## Status
 
-Phases 0–5 are complete; **Phase 6 (web-first)** is in progress — making the Next.js console the primary
-surface, starting with a real-time live-run experience. See [`docs/`](./docs) for the architecture, CLI,
-API, and contributor guides; the phase-by-phase status below summarizes what each delivered.
+Phases 0–6 are complete — the Next.js console is the **primary web surface**, with a real-time live-run
+experience and the depth to run everything from the browser. See [`docs/`](./docs) for the architecture,
+CLI, API, and contributor guides; the phase-by-phase status below summarizes what each delivered.
 
 - **Phase 0 — contracts + foundation:** ✅ done (job schema, provider seam, skill contract + verify, interim registry, hello-world loop).
 - **Phase 1 — minimum viable harness:** ✅ done. One job type ("fix a failing test → green") runs end to end: submit a spec → Plan-Execute-Verify loop in an isolated sandbox with allowlisted tools → a skill loaded via the full seam (progressive disclosure → fetch → signature-verify → mount) → verification gate runs the acceptance command → `done` only on pass; checkpoint/resume on a fresh worker; token + cost recorded.
@@ -79,7 +79,8 @@ API, and contributor guides; the phase-by-phase status below summarizes what eac
 - **Phase 3 — control plane + governance + multi-tenant:** ✅ done. A **scheduler** drains jobs respecting global + **per-tenant (factio) concurrency quotas** and a job **dependency DAG**; failed jobs are **retried** with backoff; **model routing** (the "reasoning sandwich" — strong model plans, fast model executes) is selected per job; an **RBAC policy gate** governs who may submit and which tools/skills are permitted (tenant-isolated); and a **skill usage feedback loop** records per-skill success/cost back to the registry. `auriga create`/`schedule` and `list --factio` expose it.
 - **Phase 4 — scale & governance:** ✅ (backend). An append-only **audit log** records every governed action; a **Hono HTTP API** (`apps/api`) exposes the control plane (jobs, governed submit/approve, dashboard, audit, skill marketplace) and serves a **minimal console**; **backend-agnostic provider routing** picks a provider/model per job (cost-aware: low-budget jobs run on a cheaper backend); a **skill marketplace** ranks skills by adoption; a **governance dashboard** rolls up per-tenant jobs/cost; **GitHub Actions CI** runs the gate on every PR. `auriga audit`/`dashboard`/`skills` expose it.
 - **Phase 5 — finish the surfaces & hardening:** ✅ done. **Biome** (lint/format) + **lefthook** git hooks + **commitlint** wired into `bun run check`; a CI **`integration` job** (Postgres service + `AURIGA_DOCKER_TESTS=1`) now runs the Docker sandbox, Postgres store/audit/triggers, and graphile-worker **for real** on the runner; the **Capella console** (`apps/console`: Next.js + Tailwind + shadcn-style) reads the API; **ChatOps** (`packages/chatops`: command parser + handler + Slack signature-verifying adapter) — all unit-tested (live Slack flow needs a real Slack app).
-- **Phase 6 — web-first:** 🚧 in progress. The Next.js console becomes the primary surface where users do everything end to end. Landed: an **`EventBus`** seam + a **live run** experience — the `Worker` publishes `state`/`trace`/`progress`(+cost)/`done` events, the API streams them over **SSE** (`GET /jobs/:id/events`, backfill-then-tail), and the console renders a real-time **step timeline** on a new **shadcn/ui** design system (Tailwind 4 tokens, accessible primitives), with its own Vitest gate + a CI job. Next: form-based job authoring, live pause/resume, governance/skills/trace surfaces, and the production Postgres `LISTEN/NOTIFY` bus.
+- **Phase 6 — web-first:** ✅ done. The Next.js console is the primary surface where users do everything end to end. An **`EventBus`** seam + a **live run** experience — the `Worker` publishes `state`/`trace`/`progress`(+cost)/`done` events, the API streams them over **SSE** (`GET /jobs/:id/events`, backfill-then-tail), and the console renders a real-time **step timeline** on a **shadcn/ui** design system (Tailwind 4 tokens, accessible primitives). Plus **form-based job authoring**, **live pause/resume**, governance/skills/trace surfaces, and a production Postgres `LISTEN/NOTIFY` bus — with the console's own Vitest gate + CI job.
+- **Phase 7 — web depth & hardening:** ✅ done. A **workspace + logs viewer** (file tree over the checkpoint snapshot; Steps/Logs timeline toggle); the **jobs list at scale** (filter/search/pagination + inline run/pause/cancel/approve); **observability** (cost trend, per-model breakdown, quota-utilization bars — CSS/inline-SVG, no chart dep); and **hardening** — a hermetic **Playwright E2E** (stub runner boots the API + console; login → create → watch live → cancel) with an **axe** accessibility baseline, plus a role-gated read-only config UI.
 
 ### Try it
 
@@ -120,11 +121,20 @@ auriga submit job.json
 Without Docker, the CLI falls back to the non-isolated Local sandbox (with a warning);
 set `AURIGA_REQUIRE_DOCKER=1` to require real isolation.
 
-Run the control-plane API, then the web console (the primary surface):
+Run the whole web stack (control-plane API + console) with one command:
 
 ```bash
-AURIGA_HOME=.auriga/jobs bun apps/api/src/index.ts   # control-plane API on http://localhost:8787
-cd apps/console && bun run dev                        # web console on http://localhost:3000
+bun run dev   # API on :8787 (stub runner) + console on :3000 — open http://localhost:3000
+```
+
+`bun run dev` defaults the API to a deterministic **stub runner** (no API key / Docker needed): sign in,
+create a job whose acceptance criterion is `file_exists: answer.txt`, click **Run**, and watch the live
+timeline stream to `done`. For real agent runs, start the API with a key instead (then the console
+separately):
+
+```bash
+ANTHROPIC_API_KEY=… AURIGA_HOME=.auriga/jobs bun apps/api/src/index.ts   # real runner on :8787
+cd apps/console && bun run dev                                            # console on :3000
 ```
 
 The console reads/writes the API and streams live runs over SSE; open a job to watch the agent work

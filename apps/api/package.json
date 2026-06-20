@@ -5,7 +5,8 @@
   "type": "module",
   "main": "./src/index.ts",
   "scripts": {
-    "start": "bun src/index.ts"
+    "start": "bun src/index.ts",
+    "dev": "cd ../.. && AURIGA_HOME=.auriga/jobs AURIGA_STUB_RUNNER=1 bun --watch apps/api/src/index.ts"
   },
   "dependencies": {
     "@auriga/core": "workspace:*",

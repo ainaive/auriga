@@ -59,8 +59,8 @@ test("submit → list → get → approve, with audit", async () => {
   expect(submitRes.status).toBe(201);
 
   const listRes = await app.request("/jobs", { headers: AUTH });
-  const listed = (await listRes.json()) as Array<{ id: string }>;
-  expect(listed.map((j) => j.id)).toContain("job_api");
+  const listed = (await listRes.json()) as { jobs: Array<{ id: string }> };
+  expect(listed.jobs.map((j) => j.id)).toContain("job_api");
 
   const getRes = await app.request("/jobs/job_api", { headers: AUTH });
   expect(getRes.status).toBe(200);
@@ -73,6 +73,58 @@ test("submit → list → get → approve, with audit", async () => {
   const actions = audit.map((e) => e.action);
   expect(actions).toContain("job.created");
   expect(actions).toContain("job.approved");
+});
+
+test("GET /jobs filters (state/q/date), paginates, and stays tenant-scoped", async () => {
+  const d = deps();
+  const app = createApp(d);
+  for (let i = 0; i < 4; i++) {
+    await d.store.create({
+      ...spec,
+      id: `job_${i}`,
+      goal: i % 2 === 0 ? "fix the bug" : "add a feature",
+    });
+  }
+  await d.store.update("job_0", { state: "done" });
+  await d.store.create({ ...spec, id: "other_job", factio: "zzz" }); // another tenant
+
+  const all = (await (await app.request("/jobs", { headers: AUTH })).json()) as {
+    jobs: { id: string }[];
+    total: number;
+  };
+  expect(all.total).toBe(4); // other_job excluded
+  expect(all.jobs.some((j) => j.id === "other_job")).toBe(false);
+
+  const done = (await (await app.request("/jobs?state=done", { headers: AUTH })).json()) as {
+    total: number;
+    jobs: { id: string }[];
+  };
+  expect(done.total).toBe(1);
+  expect(done.jobs[0]?.id).toBe("job_0");
+
+  const search = (await (await app.request("/jobs?q=FEATURE", { headers: AUTH })).json()) as {
+    total: number;
+  };
+  expect(search.total).toBe(2); // case-insensitive over goal
+
+  const paged = (await (await app.request("/jobs?limit=2&offset=2", { headers: AUTH })).json()) as {
+    jobs: unknown[];
+    total: number;
+    limit: number;
+    offset: number;
+  };
+  expect(paged).toMatchObject({ total: 4, limit: 2, offset: 2 });
+  expect(paged.jobs).toHaveLength(2);
+
+  const future = (await (
+    await app.request("/jobs?created_after=2099-01-01", { headers: AUTH })
+  ).json()) as { total: number };
+  expect(future.total).toBe(0);
+
+  expect((await app.request("/jobs?state=bogus", { headers: AUTH })).status).toBe(400);
+  expect((await app.request("/jobs?limit=0", { headers: AUTH })).status).toBe(400);
+  expect((await app.request("/jobs?limit=999", { headers: AUTH })).status).toBe(400);
+  expect((await app.request("/jobs?created_after=notadate", { headers: AUTH })).status).toBe(400);
 });
 
 test("policy-denied submit returns 403", async () => {
@@ -112,6 +164,18 @@ test("dashboard + console render", async () => {
   const home = await app.request("/");
   expect(home.headers.get("content-type")).toContain("text/html");
   expect(await home.text()).toContain("Auriga");
+});
+
+test("GET /dashboard includes config quotas only when a config store is wired", async () => {
+  const open = (await (await createApp(deps()).request("/dashboard")).json()) as {
+    quotas?: unknown;
+  };
+  expect(open.quotas).toBeUndefined();
+
+  const withCfg = (await (
+    await createApp({ ...deps(), config: new InMemoryConfigStore() }).request("/dashboard")
+  ).json()) as { quotas?: { global: number } };
+  expect(withCfg.quotas?.global).toBe(2); // InMemoryConfigStore default
 });
 
 test("skills endpoint returns [] without a marketplace", async () => {
@@ -250,6 +314,66 @@ test("POST /jobs/:id/cancel is 409 for a terminal job and 404 cross-tenant", asy
     ).status,
   ).toBe(404);
   expect((await post(app, "/jobs/job_api/cancel", {})).status).toBe(401);
+});
+
+test("GET /jobs/:id/workspace lists the latest checkpoint files; /file decodes one", async () => {
+  const d = deps();
+  const app = createApp(d);
+  await d.store.create(spec);
+  await d.store.saveCheckpoint({
+    job_id: "job_api",
+    lifecycle_state: "running",
+    messages: [],
+    usage: { input_tokens: 0, output_tokens: 0 },
+    steps: 1,
+    next_attempt: 2,
+    loaded_skills: [],
+    workspace: {
+      "answer.txt": Buffer.from("hi").toString("base64"),
+      "dir/b.json": Buffer.from("{}").toString("base64"),
+      "bin.dat": Buffer.from([0, 1, 2]).toString("base64"),
+    },
+  });
+
+  const man = (await (await app.request("/jobs/job_api/workspace", { headers: AUTH })).json()) as {
+    files: { path: string; bytes: number }[];
+  };
+  expect(man.files.map((f) => f.path)).toEqual(["answer.txt", "bin.dat", "dir/b.json"]); // sorted
+  expect(man.files.find((f) => f.path === "answer.txt")?.bytes).toBe(2);
+
+  const txt = await (
+    await app.request("/jobs/job_api/workspace/file?path=answer.txt", { headers: AUTH })
+  ).json();
+  expect(txt).toMatchObject({ encoding: "utf8", content: "hi", truncated: false });
+
+  const bin = (await (
+    await app.request("/jobs/job_api/workspace/file?path=bin.dat", { headers: AUTH })
+  ).json()) as { encoding: string };
+  expect(bin.encoding).toBe("base64");
+});
+
+test("workspace: empty manifest w/o checkpoint; 404 unknown file/cross-tenant; 400 no path; 401", async () => {
+  const d = deps();
+  const app = createApp(d);
+  await d.store.create(spec);
+
+  const man = (await (await app.request("/jobs/job_api/workspace", { headers: AUTH })).json()) as {
+    files: unknown[];
+  };
+  expect(man.files).toEqual([]); // no checkpoint yet → empty, not 404
+
+  expect(
+    (await app.request("/jobs/job_api/workspace/file?path=nope.txt", { headers: AUTH })).status,
+  ).toBe(404);
+  expect((await app.request("/jobs/job_api/workspace/file", { headers: AUTH })).status).toBe(400);
+  expect((await app.request("/jobs/job_api/workspace")).status).toBe(401);
+  expect(
+    (
+      await app.request("/jobs/job_api/workspace", {
+        headers: { "x-auriga-factio": "other", "x-auriga-role": "dev" },
+      })
+    ).status,
+  ).toBe(404);
 });
 
 // Parse Hono SSE text into [{ id, data }] frames.

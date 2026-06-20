@@ -5,7 +5,8 @@ export function Label({ className, ...props }: LabelHTMLAttributes<HTMLLabelElem
   return <label className={cn("text-xs font-medium text-foreground", className)} {...props} />;
 }
 
-/** A labelled form control with an optional hint and inline error. */
+/** A labelled form control with an optional hint and inline error. The label wraps
+ *  the control so it's associated even without an explicit id (accessible by default). */
 export function Field({
   label,
   htmlFor,
@@ -23,8 +24,10 @@ export function Field({
 }) {
   return (
     <div className={cn("space-y-1", className)}>
-      <Label htmlFor={htmlFor}>{label}</Label>
-      {children}
+      <label htmlFor={htmlFor} className="block space-y-1">
+        <span className="block text-xs font-medium text-foreground">{label}</span>
+        {children}
+      </label>
       {error ? (
         <p className="text-xs text-destructive">{error}</p>
       ) : (

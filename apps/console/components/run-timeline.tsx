@@ -111,15 +111,24 @@ function rowFor(e: TraceEvent): Row {
   }
 }
 
-/** Renders an ordered trace as a dense step timeline. Shared by the live view and
- *  (later) the sealed-trace viewer. */
-export function RunTimeline({ events, className }: { events: TraceEvent[]; className?: string }) {
-  if (events.length === 0) {
+/** Renders an ordered trace as a dense step timeline. Shared by the live view and the
+ *  sealed-trace viewer. An optional `filter` narrows the events (e.g. tool output only). */
+export function RunTimeline({
+  events,
+  className,
+  filter,
+}: {
+  events: TraceEvent[];
+  className?: string;
+  filter?: (e: TraceEvent) => boolean;
+}) {
+  const shown = filter ? events.filter(filter) : events;
+  if (shown.length === 0) {
     return <p className="text-sm text-muted-foreground">No steps yet.</p>;
   }
   return (
     <ol className={cn("space-y-3", className)}>
-      {events.map((e, i) => {
+      {shown.map((e, i) => {
         const r = rowFor(e);
         const Icon = r.icon;
         return (

@@ -67,7 +67,7 @@ export function JobForm({ factio, createdBy }: { factio: string; createdBy: stri
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-1 text-sm">
+      <div role="tablist" aria-label="job spec input mode" className="flex gap-1 text-sm">
         <ModeTab active={mode === "form"} onClick={() => switchMode("form")}>
           Form
         </ModeTab>
@@ -246,6 +246,8 @@ function ModeTab({
   return (
     <button
       type="button"
+      role="tab"
+      aria-selected={active}
       onClick={onClick}
       className={
         active
@@ -273,6 +275,7 @@ function CriterionRow({
     <div className="rounded-md border bg-background p-2">
       <div className="flex items-center gap-2">
         <Select
+          aria-label="criterion type"
           value={criterion.kind}
           onChange={(e) => onChange(emptyCriterion(e.target.value as CriterionDraft["kind"]))}
           className="h-8 w-36"
@@ -285,6 +288,7 @@ function CriterionRow({
         {criterion.kind === "command" && (
           <>
             <Input
+              aria-label="command"
               value={criterion.cmd}
               placeholder="bun test"
               onChange={(e) => onChange({ ...criterion, cmd: e.target.value })}
@@ -299,6 +303,7 @@ function CriterionRow({
         )}
         {criterion.kind === "file_exists" && (
           <Input
+            aria-label="file path"
             value={criterion.path}
             placeholder="path/to/file"
             onChange={(e) => onChange({ ...criterion, path: e.target.value })}
@@ -306,6 +311,7 @@ function CriterionRow({
         )}
         {criterion.kind === "named_check" && (
           <Input
+            aria-label="check name"
             value={criterion.name}
             placeholder="check name"
             onChange={(e) => onChange({ ...criterion, name: e.target.value })}

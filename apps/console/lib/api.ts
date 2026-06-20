@@ -28,6 +28,10 @@ export interface Dashboard {
   totals: { jobs: number; tenants: number; cost_usd: number };
   tenants: TenantSummary[];
   recentAudit: { id: string; ts: string; factio: string; action: string; job_id: string | null }[];
+  costTrend: { bucket: string; jobs: number; cost_usd: number }[];
+  byModel: { model: string; jobs: number; cost_usd: number }[];
+  active: { factio: string; active: number }[];
+  quotas?: { global: number; perFactio: number };
 }
 
 export interface Job {
@@ -40,6 +44,23 @@ export interface Job {
   attempts: number;
   steps: number;
   usage: Usage;
+  created_at: string;
+}
+
+export interface JobsQuery {
+  state?: string;
+  q?: string;
+  created_after?: string;
+  created_before?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface JobsPage {
+  jobs: Job[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface Trace {
@@ -47,6 +68,24 @@ export interface Trace {
   model: string;
   events: TraceEvent[];
   result: { state: string; reason: string };
+}
+
+export interface WorkspaceEntry {
+  path: string;
+  bytes: number;
+}
+
+export interface WorkspaceManifest {
+  job_id: string;
+  files: WorkspaceEntry[];
+}
+
+export interface WorkspaceFile {
+  path: string;
+  bytes: number;
+  truncated: boolean;
+  encoding: "utf8" | "base64";
+  content: string;
 }
 
 export interface Skill {
@@ -84,9 +123,21 @@ async function get<T>(path: string, withAuth = false): Promise<T | null> {
 
 export const api = {
   dashboard: () => get<Dashboard>("/dashboard"),
-  jobs: () => get<Job[]>("/jobs", true),
+  jobs: (params: JobsQuery = {}) => {
+    const qs = new URLSearchParams();
+    if (params.state) qs.set("state", params.state);
+    if (params.q) qs.set("q", params.q);
+    if (params.created_after) qs.set("created_after", params.created_after);
+    if (params.created_before) qs.set("created_before", params.created_before);
+    if (params.limit != null) qs.set("limit", String(params.limit));
+    if (params.offset) qs.set("offset", String(params.offset));
+    const query = qs.toString();
+    return get<JobsPage>(`/jobs${query ? `?${query}` : ""}`, true);
+  },
   job: (id: string) => get<Job>(`/jobs/${encodeURIComponent(id)}`, true),
   trace: (id: string) => get<Trace>(`/jobs/${encodeURIComponent(id)}/trace`, true),
+  workspace: (id: string) =>
+    get<WorkspaceManifest>(`/jobs/${encodeURIComponent(id)}/workspace`, true),
   skills: () => get<Skill[]>("/skills"),
   config: () => get<AurigaConfig>("/config"),
 };

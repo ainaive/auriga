@@ -9,6 +9,7 @@
     "apps/*"
   ],
   "scripts": {
+    "dev": "bun --filter '@auriga/api' --filter '@auriga/console' dev",
     "typecheck": "tsc --noEmit",
     "lint": "biome check",
     "format": "biome check --write",

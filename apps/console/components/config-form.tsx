@@ -17,8 +17,9 @@ import {
   type PolicyDraft,
 } from "@/lib/config-form";
 
-/** Edit RBAC policies + scheduler quotas. Saving requires an admin session (PUT /config). */
-export function ConfigForm({ initial }: { initial: AurigaConfig }) {
+/** Edit RBAC policies + scheduler quotas. Read-only unless `canEdit` (admin); the API
+ *  enforces admin on PUT /config regardless — this is defense-in-depth + UX. */
+export function ConfigForm({ initial, canEdit = true }: { initial: AurigaConfig; canEdit?: boolean }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [mode, setMode] = useState<"form" | "json">("form");
@@ -75,7 +76,7 @@ export function ConfigForm({ initial }: { initial: AurigaConfig }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-1 text-sm">
+      <div role="tablist" aria-label="config input mode" className="flex gap-1 text-sm">
         <ModeTab active={mode === "form"} onClick={() => switchMode("form")}>
           Form
         </ModeTab>
@@ -84,6 +85,7 @@ export function ConfigForm({ initial }: { initial: AurigaConfig }) {
         </ModeTab>
       </div>
 
+      <fieldset disabled={!canEdit} className="m-0 space-y-4 border-0 p-0">
       {mode === "json" ? (
         <div className="space-y-3">
           <Textarea
@@ -92,9 +94,11 @@ export function ConfigForm({ initial }: { initial: AurigaConfig }) {
             spellCheck={false}
             className="h-96 font-mono text-xs"
           />
-          <Button onClick={() => save(json)} disabled={pending}>
-            {pending ? "Saving…" : "Save config"}
-          </Button>
+          {canEdit && (
+            <Button onClick={() => save(json)} disabled={pending}>
+              {pending ? "Saving…" : "Save config"}
+            </Button>
+          )}
         </div>
       ) : (
         <div className="space-y-5">
@@ -113,9 +117,11 @@ export function ConfigForm({ initial }: { initial: AurigaConfig }) {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label>RBAC policies (per factio)</Label>
-              <Button type="button" variant="ghost" size="sm" onClick={addPolicy}>
-                <Plus /> Add policy
-              </Button>
+              {canEdit && (
+                <Button type="button" variant="ghost" size="sm" onClick={addPolicy}>
+                  <Plus /> Add policy
+                </Button>
+              )}
             </div>
             {form.policies.length === 0 && (
               <p className="text-xs text-muted-foreground">No policies — add one to allow submissions.</p>
@@ -134,19 +140,28 @@ export function ConfigForm({ initial }: { initial: AurigaConfig }) {
             </div>
           </div>
 
-          <Button onClick={onSaveForm} disabled={pending}>
-            {pending ? "Saving…" : "Save config"}
-          </Button>
+          {canEdit && (
+            <Button onClick={onSaveForm} disabled={pending}>
+              {pending ? "Saving…" : "Save config"}
+            </Button>
+          )}
         </div>
       )}
+      </fieldset>
 
       <div className="flex items-center gap-3">
         {saved && <span className="text-sm text-emerald-600 dark:text-emerald-400">Saved.</span>}
         {error && <span className="text-sm text-destructive">{error}</span>}
       </div>
       <p className="text-xs text-muted-foreground">
-        Editing RBAC + quotas. Saving requires an <span className="font-medium">admin</span> session;
-        edits take effect without a restart.
+        {canEdit ? (
+          <>
+            Editing RBAC + quotas. Saving requires an{" "}
+            <span className="font-medium">admin</span> session; edits take effect without a restart.
+          </>
+        ) : (
+          "Read-only — an admin session is required to edit RBAC + quotas."
+        )}
       </p>
     </div>
   );
@@ -164,6 +179,8 @@ function ModeTab({
   return (
     <button
       type="button"
+      role="tab"
+      aria-selected={active}
       onClick={onClick}
       className={
         active

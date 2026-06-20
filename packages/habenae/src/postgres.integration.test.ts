@@ -135,8 +135,11 @@ describe.if(Boolean(DATABASE_URL))("Postgres integration", () => {
     expect(all.map((e) => e.data.kind)).toEqual(["state", "done"]);
     expect(await publisher.replay("pg_evt", a.seq)).toHaveLength(1);
 
-    // NOTIFY fanned the events out to the other connection.
-    await new Promise((r) => setTimeout(r, 400));
+    // NOTIFY fans out asynchronously; poll until both events arrive (don't race a fixed wait).
+    const deadline = performance.now() + 5000; // monotonic — unaffected by wall-clock jumps
+    while (received.length < 2 && performance.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
     expect(received.map((e) => e.data.kind)).toEqual(["state", "done"]);
 
     unsub();
