@@ -39,6 +39,26 @@ export interface ApiDeps {
 /** Job states for which a run is already in progress (a new run is rejected). */
 const ACTIVE_STATES = ["planning", "running", "verifying"];
 
+/** All job lifecycle states (for query validation on GET /jobs). */
+const JOB_STATES = [
+  "pending",
+  "planning",
+  "running",
+  "verifying",
+  "done",
+  "failed",
+  "paused",
+  "cancelled",
+];
+
+/** Parse a bounded integer query param; returns null if present-but-invalid. */
+function clampInt(raw: string | undefined, def: number, min: number, max: number): number | null {
+  if (raw === undefined) return def;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < min || n > max) return null;
+  return n;
+}
+
 /** Parse a Last-Event-ID / ?after= cursor into a non-negative seq (0 = from the start). */
 function toSeq(raw: string | undefined): number {
   const n = Number(raw);
@@ -93,10 +113,40 @@ export function createApp(deps: ApiDeps): Hono {
 
   app.get("/health", (c) => c.json({ ok: true }));
 
+  // Tenant-scoped, filtered + paged job list. Filters are applied in the API layer over
+  // listByFactio (works for every store driver); a Postgres deployment should push the
+  // predicate + limit/offset into an indexed query (`where state=… and created_at between …
+  // order by created_at desc`) — a follow-up, like the conditional-cancel note below.
   app.get("/jobs", async (c) => {
     const actor = actorOf(c);
     if (!actor) return c.json({ error: "auth required (x-auriga-factio, x-auriga-role)" }, 401);
-    return c.json(await deps.store.listByFactio(actor.factio));
+
+    const state = c.req.query("state");
+    if (state && !JOB_STATES.includes(state))
+      return c.json({ error: `invalid state: ${state}` }, 400);
+    const limit = clampInt(c.req.query("limit"), 25, 1, 100);
+    if (limit === null) return c.json({ error: "invalid limit (1..100)" }, 400);
+    const offset = clampInt(c.req.query("offset"), 0, 0, Number.MAX_SAFE_INTEGER);
+    if (offset === null) return c.json({ error: "invalid offset" }, 400);
+    const q = c.req.query("q")?.toLowerCase();
+    const after = c.req.query("created_after");
+    const before = c.req.query("created_before");
+
+    let jobs = await deps.store.listByFactio(actor.factio);
+    if (state) jobs = jobs.filter((j) => j.state === state);
+    if (q)
+      jobs = jobs.filter(
+        (j) => j.id.toLowerCase().includes(q) || j.spec.goal.toLowerCase().includes(q),
+      );
+    if (after) jobs = jobs.filter((j) => j.created_at >= after);
+    if (before) jobs = jobs.filter((j) => j.created_at <= before);
+    // Newest first; stable tiebreak on id so paging is deterministic.
+    jobs.sort((a, b) =>
+      a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : a.id.localeCompare(b.id),
+    );
+
+    const total = jobs.length;
+    return c.json({ jobs: jobs.slice(offset, offset + limit), total, limit, offset });
   });
 
   app.get("/jobs/:id", async (c) => {

@@ -38,7 +38,7 @@ x-auriga-role:   <role>
 | Method | Path | Auth | Purpose | Status codes |
 |---|---|---|---|---|
 | `GET` | `/health` | open | Liveness probe → `{ ok: true }` | `200` |
-| `GET` | `/jobs` | tenant | List the caller's jobs (`listByFactio`) | `200`, `401` |
+| `GET` | `/jobs` | tenant | List the caller's jobs — filter/search/paginate (see below) | `200`, `400`, `401` |
 | `GET` | `/jobs/:id` | tenant | Fetch one job record | `200`, `401`, `404` |
 | `GET` | `/jobs/:id/trace` | tenant | Fetch the recorded (sealed) trace | `200`, `401`, `404` |
 | `GET` | `/jobs/:id/events` | tenant | **Live run events (SSE)** — backfill + tail (see below) | `200`, `401`, `404`, `501` |
@@ -57,6 +57,12 @@ x-auriga-role:   <role>
 `POST /jobs` returns `400` for invalid JSON or a spec that fails validation, and `403` (with the
 `PolicyError` message) when the RBAC gate denies the actor/tenant/tools/skills. Running the job is the
 worker/scheduler's responsibility — the API only creates it `pending`.
+
+`GET /jobs` accepts optional query params (filtered in the API layer over `listByFactio`; a Postgres
+deployment should push these into an indexed query): `state` (a job state; `400` if unknown), `q`
+(case-insensitive substring over id + goal), `created_after` / `created_before` (ISO), `limit`
+(default 25, 1..100), `offset` (default 0). It returns a paged envelope
+`{ jobs, total, limit, offset }` (newest first, `total` = filtered count before paging).
 
 ### Live run events (SSE)
 

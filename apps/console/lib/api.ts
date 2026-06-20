@@ -40,6 +40,23 @@ export interface Job {
   attempts: number;
   steps: number;
   usage: Usage;
+  created_at: string;
+}
+
+export interface JobsQuery {
+  state?: string;
+  q?: string;
+  created_after?: string;
+  created_before?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface JobsPage {
+  jobs: Job[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface Trace {
@@ -102,7 +119,17 @@ async function get<T>(path: string, withAuth = false): Promise<T | null> {
 
 export const api = {
   dashboard: () => get<Dashboard>("/dashboard"),
-  jobs: () => get<Job[]>("/jobs", true),
+  jobs: (params: JobsQuery = {}) => {
+    const qs = new URLSearchParams();
+    if (params.state) qs.set("state", params.state);
+    if (params.q) qs.set("q", params.q);
+    if (params.created_after) qs.set("created_after", params.created_after);
+    if (params.created_before) qs.set("created_before", params.created_before);
+    if (params.limit != null) qs.set("limit", String(params.limit));
+    if (params.offset) qs.set("offset", String(params.offset));
+    const query = qs.toString();
+    return get<JobsPage>(`/jobs${query ? `?${query}` : ""}`, true);
+  },
   job: (id: string) => get<Job>(`/jobs/${encodeURIComponent(id)}`, true),
   trace: (id: string) => get<Trace>(`/jobs/${encodeURIComponent(id)}/trace`, true),
   workspace: (id: string) =>
