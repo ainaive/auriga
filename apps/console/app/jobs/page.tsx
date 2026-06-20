@@ -1,10 +1,12 @@
+import { CloudOff, Inbox } from "lucide-react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { JobRowActions } from "@/components/job-row-actions";
 import { JobsFilterBar } from "@/components/jobs-filter-bar";
 import { JobsPager } from "@/components/jobs-pager";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 
 export const dynamic = "force-dynamic";
@@ -30,19 +32,38 @@ export default async function JobsPage({ searchParams }: { searchParams: SearchP
     offset,
   });
 
-  if (!page) return <p className="text-muted-foreground">API unavailable or unauthorized.</p>;
+  if (!page) {
+    return (
+      <EmptyState
+        icon={CloudOff}
+        title="Unavailable"
+        description="The API could not be reached, or you're not authorized to view jobs."
+      />
+    );
+  }
 
   return (
-    <Card>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <CardTitle className="mb-0">Jobs</CardTitle>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Jobs</h1>
+          <p className="mt-1 text-sm text-muted-foreground tabular-nums">
+            {page.total.toLocaleString()} total
+          </p>
+        </div>
         <JobsFilterBar />
       </div>
 
       {page.jobs.length === 0 ? (
-        <p className="text-muted-foreground">No jobs match.</p>
+        <Card>
+          <EmptyState
+            icon={Inbox}
+            title="No jobs match"
+            description="Try clearing the filters, or create a new job to get started."
+          />
+        </Card>
       ) : (
-        <>
+        <Card>
           <Table>
             <THead>
               <TR>
@@ -58,7 +79,7 @@ export default async function JobsPage({ searchParams }: { searchParams: SearchP
                 <TR key={j.id}>
                   <TD>
                     <Link
-                      className="font-mono text-xs text-foreground hover:underline"
+                      className="font-mono text-xs text-foreground transition-colors hover:text-foreground/70 hover:underline"
                       href={`/jobs/${encodeURIComponent(j.id)}`}
                     >
                       {j.id}
@@ -78,11 +99,11 @@ export default async function JobsPage({ searchParams }: { searchParams: SearchP
               ))}
             </TBody>
           </Table>
-          <div className="mt-3">
+          <div className="mt-4">
             <JobsPager total={page.total} limit={page.limit} offset={page.offset} />
           </div>
-        </>
+        </Card>
       )}
-    </Card>
+    </div>
   );
 }

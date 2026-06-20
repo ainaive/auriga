@@ -37,7 +37,7 @@ interface Row {
   body?: ReactNode;
 }
 
-const MONO = "mt-1 max-h-40 overflow-auto rounded-md bg-muted/60 p-2 font-mono text-xs text-muted-foreground whitespace-pre-wrap break-words";
+const MONO = "mt-1 max-h-40 overflow-auto rounded-lg border border-border/60 bg-muted/50 p-2.5 font-mono text-xs text-muted-foreground whitespace-pre-wrap break-words";
 
 function rowFor(e: TraceEvent): Row {
   switch (e.type) {
@@ -127,12 +127,14 @@ export function RunTimeline({
     return <p className="text-sm text-muted-foreground">No steps yet.</p>;
   }
   return (
-    <ol className={cn("space-y-3", className)}>
+    <ol className={cn("relative space-y-4", className)}>
+      {/* A subtle rail connecting the step nodes (left edge, behind the icons). */}
+      <div aria-hidden="true" className="absolute bottom-2 left-3 top-2 w-px bg-border/70" />
       {shown.map((e, i) => {
         const r = rowFor(e);
         const Icon = r.icon;
         return (
-          <li key={i} className="flex gap-3">
+          <li key={i} className="relative flex gap-3">
             <div
               className={cn(
                 "mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full ring-1 ring-inset",

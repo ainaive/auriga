@@ -37,7 +37,7 @@ export function WorkspaceViewer({ jobId, files }: { jobId: string; files: Worksp
     <div className="grid gap-3 sm:grid-cols-[16rem_1fr]">
       <div
         aria-label="workspace files"
-        className="max-h-96 overflow-auto rounded-md border bg-muted/30 p-1 text-sm"
+        className="max-h-96 overflow-auto rounded-lg border bg-muted/30 p-1.5 text-sm"
       >
         <Tree nodes={tree} selected={selected} onOpen={open} depth={0} />
       </div>
@@ -61,7 +61,7 @@ export function WorkspaceViewer({ jobId, files }: { jobId: string; files: Worksp
             ) : file.encoding === "base64" ? (
               <p className="text-sm text-muted-foreground">Binary file · {file.bytes} bytes</p>
             ) : (
-              <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted/60 p-2 font-mono text-xs">
+              <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border/60 bg-muted/50 p-3 font-mono text-xs">
                 {file.content}
               </pre>
             )}
