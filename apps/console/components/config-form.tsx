@@ -2,7 +2,7 @@
 
 import { Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Field, Label } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,14 @@ export function ConfigForm({ initial }: { initial: AurigaConfig }) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+
+  // Re-sync to the server config when it changes (after a successful save + refresh),
+  // so the form reflects the persisted/normalized state. `initial` is stable during
+  // client-side editing — the page only re-renders (new prop) on router.refresh.
+  useEffect(() => {
+    setForm(configToForm(initial));
+    setJson(JSON.stringify(initial, null, 2));
+  }, [initial]);
 
   const setPolicy = (i: number, p: PolicyDraft) =>
     setForm((f) => ({ ...f, policies: f.policies.map((x, j) => (j === i ? p : x)) }));
