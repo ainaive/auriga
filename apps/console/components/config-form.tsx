@@ -76,7 +76,7 @@ export function ConfigForm({ initial, canEdit = true }: { initial: AurigaConfig;
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-1 text-sm">
+      <div role="tablist" aria-label="config input mode" className="flex gap-1 text-sm">
         <ModeTab active={mode === "form"} onClick={() => switchMode("form")}>
           Form
         </ModeTab>
@@ -179,6 +179,8 @@ function ModeTab({
   return (
     <button
       type="button"
+      role="tab"
+      aria-selected={active}
       onClick={onClick}
       className={
         active

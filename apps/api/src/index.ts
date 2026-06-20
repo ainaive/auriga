@@ -9,6 +9,7 @@ import {
 } from "@auriga/habenae";
 import { createApp } from "./app";
 import { createRunner } from "./runner";
+import { createStubRunner } from "./stub-runner";
 
 /**
  * Dev server entry. Wires the file-backed control plane. The RBAC policy is read
@@ -33,6 +34,12 @@ const config = await FileConfigStore.open(home);
 // share one instance, so a browser can watch a run stream step by step. The production
 // cross-process path uses the Postgres LISTEN/NOTIFY bus instead.
 const bus = new InMemoryEventBus();
+// AURIGA_STUB_RUNNER=1 → a deterministic, network-free runner (E2E/offline dev);
+// otherwise the live in-process runner (undefined without ANTHROPIC_API_KEY → /run 503).
+const runner =
+  process.env.AURIGA_STUB_RUNNER === "1"
+    ? createStubRunner(store, audit, bus)
+    : createRunner(store, audit, bus);
 const app = createApp({
   store,
   audit,
@@ -40,8 +47,7 @@ const app = createApp({
   bus,
   // RBAC reads from the (web-editable) config store, so edits take effect without a restart.
   policy: new StoreBackedPolicy(config),
-  // In-process background runner (undefined without ANTHROPIC_API_KEY → /run answers 503).
-  runJob: createRunner(store, audit, bus)?.run,
+  runJob: runner?.run,
 });
 
 console.log(`auriga api listening on http://localhost:${port}`);
