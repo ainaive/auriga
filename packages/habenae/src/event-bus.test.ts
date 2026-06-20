@@ -39,7 +39,7 @@ test("replay returns only events after the cursor, in order", async () => {
 test("subscribe receives live events until unsubscribed", async () => {
   const bus = new InMemoryEventBus();
   const seen: number[] = [];
-  const unsub = bus.subscribe("j1", (e) => seen.push(e.seq));
+  const unsub = await bus.subscribe("j1", (e) => seen.push(e.seq));
   await bus.publish(liveEvent("j1", "acme", state("planning")));
   await bus.publish(liveEvent("j1", "acme", state("running")));
   unsub();
@@ -50,7 +50,7 @@ test("subscribe receives live events until unsubscribed", async () => {
 test("subscribers only receive their own job's events", async () => {
   const bus = new InMemoryEventBus();
   const seen: string[] = [];
-  bus.subscribe("j1", (e) => seen.push(e.job_id));
+  await bus.subscribe("j1", (e) => seen.push(e.job_id));
   await bus.publish(liveEvent("j2", "acme", done));
   await bus.publish(liveEvent("j1", "acme", done));
   expect(seen).toEqual(["j1"]);
@@ -59,10 +59,10 @@ test("subscribers only receive their own job's events", async () => {
 test("a throwing subscriber breaks neither publish nor other subscribers", async () => {
   const bus = new InMemoryEventBus();
   const seen: number[] = [];
-  bus.subscribe("j1", () => {
+  await bus.subscribe("j1", () => {
     throw new Error("boom");
   });
-  bus.subscribe("j1", (e) => seen.push(e.seq));
+  await bus.subscribe("j1", (e) => seen.push(e.seq));
   const env = await bus.publish(liveEvent("j1", "acme", done));
   expect(env.seq).toBe(1);
   expect(seen).toEqual([1]);

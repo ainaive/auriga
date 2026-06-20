@@ -19,8 +19,9 @@ export type PublishInput = Omit<JobEventEnvelope, "seq" | "ts">;
 export interface EventBus {
   /** Assign a per-job `seq` + `ts`, persist for backfill, and fan out to live subscribers. */
   publish(input: PublishInput): Promise<JobEventEnvelope>;
-  /** Live tail. Returns an unsubscribe fn; the callback receives every event after subscription. */
-  subscribe(jobId: string, onEvent: (env: JobEventEnvelope) => void): Unsubscribe;
+  /** Live tail. Awaits readiness (e.g. Postgres LISTEN attached) then returns an unsubscribe fn,
+   *  so a caller can subscribe-before-backfill without a gap. */
+  subscribe(jobId: string, onEvent: (env: JobEventEnvelope) => void): Promise<Unsubscribe>;
   /** Durable backfill: events for `jobId` with `seq > afterSeq`, in order. */
   replay(jobId: string, afterSeq: number): Promise<JobEventEnvelope[]>;
 }
@@ -63,7 +64,7 @@ export class InMemoryEventBus implements EventBus {
     return structuredClone(env);
   }
 
-  subscribe(jobId: string, onEvent: (env: JobEventEnvelope) => void): Unsubscribe {
+  async subscribe(jobId: string, onEvent: (env: JobEventEnvelope) => void): Promise<Unsubscribe> {
     let set = this.listeners.get(jobId);
     if (!set) {
       set = new Set();
@@ -158,14 +159,15 @@ export class PostgresEventBus implements EventBus {
     return env;
   }
 
-  subscribe(jobId: string, onEvent: (env: JobEventEnvelope) => void): Unsubscribe {
+  async subscribe(jobId: string, onEvent: (env: JobEventEnvelope) => void): Promise<Unsubscribe> {
     let set = this.listeners.get(jobId);
     if (!set) {
       set = new Set();
       this.listeners.set(jobId, set);
     }
     set.add(onEvent);
-    void this.ensureListening();
+    // Await LISTEN attachment so a subscribe-then-backfill caller can't miss events.
+    await this.ensureListening();
     return () => {
       const current = this.listeners.get(jobId);
       if (!current) return;

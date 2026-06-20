@@ -69,7 +69,7 @@ test("publishes live state/trace/progress/done events that match the sealed trac
   const bus = new InMemoryEventBus();
   await store.create(spec("job_live"));
   const seen: JobEventEnvelope[] = [];
-  bus.subscribe("job_live", (e) => seen.push(e));
+  await bus.subscribe("job_live", (e) => seen.push(e));
 
   await new Worker({
     store,
@@ -145,13 +145,15 @@ test("a pause_requested job stops resumably, then resumes to done", async () => 
   await store.update("job_pause", { pause_requested: true });
 
   // Paused at the attempt boundary before doing any work — the stub is not consumed.
+  const pausedProvider = new StubProvider([textResponse("should not run while paused")]);
   const first = await new Worker({
     store,
-    provider: new StubProvider([textResponse("should not run while paused")]),
+    provider: pausedProvider,
     model: "stub",
     sandboxDriver: new LocalSandboxDriver(),
   }).run("job_pause");
   expect(first.state).toBe("paused");
+  expect(pausedProvider.calls).toHaveLength(0);
   expect((await store.get("job_pause"))?.state).toBe("paused");
 
   // Resume: clear the pause signal, run a fresh worker → completes.

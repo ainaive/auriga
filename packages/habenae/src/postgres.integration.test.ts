@@ -116,8 +116,7 @@ describe.if(Boolean(DATABASE_URL))("Postgres integration", () => {
     const subPool = new Pool({ connectionString: DATABASE_URL });
     const subscriber = new PostgresEventBus(subPool);
     const received: JobEventEnvelope[] = [];
-    const unsub = subscriber.subscribe("pg_evt", (e) => received.push(e));
-    await new Promise((r) => setTimeout(r, 250)); // let LISTEN attach
+    const unsub = await subscriber.subscribe("pg_evt", (e) => received.push(e));
 
     const a = await publisher.publish({
       job_id: "pg_evt",

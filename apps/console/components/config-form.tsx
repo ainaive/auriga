@@ -55,13 +55,23 @@ export function ConfigForm({ initial }: { initial: AurigaConfig }) {
     save(JSON.stringify(config));
   }
 
+  // Switching to the JSON tab regenerates the JSON from the current form, so form
+  // edits can't be silently lost (and then saved stale) when you switch tabs.
+  function switchMode(next: "form" | "json") {
+    if (next === "json") {
+      const { config } = buildConfig(form);
+      if (config) setJson(JSON.stringify(config, null, 2));
+    }
+    setMode(next);
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex gap-1 text-sm">
-        <ModeTab active={mode === "form"} onClick={() => setMode("form")}>
+        <ModeTab active={mode === "form"} onClick={() => switchMode("form")}>
           Form
         </ModeTab>
-        <ModeTab active={mode === "json"} onClick={() => setMode("json")}>
+        <ModeTab active={mode === "json"} onClick={() => switchMode("json")}>
           Raw JSON
         </ModeTab>
       </div>

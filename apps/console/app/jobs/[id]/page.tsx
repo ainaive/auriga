@@ -16,12 +16,13 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
   const { id } = await params;
   const job = await api.job(id);
   if (!job) notFound();
-  const trace = await api.trace(id);
 
   const active = ACTIVE_STATES.includes(job.state);
   const terminal = TERMINAL_STATES.includes(job.state);
   // "Live" states stream; resting states (paused/terminal) render the sealed trace.
   const live = active || job.state === "pending";
+  // Only the resting branch uses the sealed trace — skip the fetch for live runs.
+  const trace = live ? null : await api.trace(id);
   const needsApproval = job.state === "paused" && !!job.spec.require_approval && !job.approved;
   const resumable = job.state === "paused" && !needsApproval;
   // Runnable: not active, not done, not awaiting approval (pending/failed/cancelled re-run; paused resume).

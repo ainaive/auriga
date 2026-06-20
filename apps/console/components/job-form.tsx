@@ -55,13 +55,23 @@ export function JobForm({ factio, createdBy }: { factio: string; createdBy: stri
     submit(JSON.stringify(spec));
   }
 
+  // Switching to the JSON tab fills it from the current form (a live "view as JSON"),
+  // so the structured edits aren't silently lost when you switch tabs.
+  function switchMode(next: "form" | "json") {
+    if (next === "json") {
+      const { spec } = buildJobSpec(form, { factio, created_by: createdBy });
+      if (spec) setJson(JSON.stringify(spec, null, 2));
+    }
+    setMode(next);
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex gap-1 text-sm">
-        <ModeTab active={mode === "form"} onClick={() => setMode("form")}>
+        <ModeTab active={mode === "form"} onClick={() => switchMode("form")}>
           Form
         </ModeTab>
-        <ModeTab active={mode === "json"} onClick={() => setMode("json")}>
+        <ModeTab active={mode === "json"} onClick={() => switchMode("json")}>
           Raw JSON
         </ModeTab>
       </div>

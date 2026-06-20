@@ -73,10 +73,16 @@ export class Worker {
     // or failing subscriber never blocks or breaks the run; the in-memory bus assigns
     // `seq` synchronously, so call order is preserved.
     const bus = this.opts.bus;
+    // Serialize publishes into a chain so an async backend (Postgres) can't reorder
+    // them — e.g. deliver `done` before an earlier trace/state write, which would make
+    // a client close early and drop events. `await publishChain` before returning
+    // flushes the queue so the terminal event is delivered last.
+    let publishChain: Promise<void> = Promise.resolve();
     const publish = (data: JobLiveEvent): void => {
       if (!bus) return;
-      void bus
-        .publish({ job_id: jobId, factio: record.spec.factio, data })
+      publishChain = publishChain
+        .then(() => bus.publish({ job_id: jobId, factio: record.spec.factio, data }))
+        .then(() => undefined)
         .catch((err) =>
           console.warn(
             `[auriga] event publish failed: ${err instanceof Error ? err.message : err}`,
@@ -107,6 +113,7 @@ export class Worker {
         job_id: jobId,
       });
       publish({ kind: "done", state: "paused", reason });
+      await publishChain;
       return {
         state: "paused",
         reason,
@@ -248,6 +255,7 @@ export class Worker {
             console.warn(`[auriga] skill usage feedback failed: ${r.reason}`);
         }
       }
+      await publishChain;
       return result;
     } finally {
       await sandbox.destroy();

@@ -114,7 +114,9 @@ export function createApp(deps: ApiDeps): Hono {
       const buffered: JobEventEnvelope[] = [];
       let wake: (() => void) | undefined;
       let aborted = false;
-      const unsub = bus.subscribe(id, (env) => {
+      // Subscribe (awaiting LISTEN attachment) BEFORE backfilling so no event slips
+      // through the gap; write() dedupes the replay/live overlap on `seq`.
+      const unsub = await bus.subscribe(id, (env) => {
         buffered.push(env);
         wake?.();
       });
@@ -136,6 +138,12 @@ export function createApp(deps: ApiDeps): Hono {
           if (buffered.length === 0) {
             await new Promise<void>((resolve) => {
               wake = resolve;
+              // Guard the race: if an event arrived or the client aborted between the
+              // emptiness check and this assignment, resolve now instead of hanging.
+              if (aborted || buffered.length > 0) {
+                wake = undefined;
+                resolve();
+              }
             });
             wake = undefined;
             continue;
