@@ -422,9 +422,13 @@ export function createApp(deps: ApiDeps): Hono {
   });
 
   // Aggregate governance views + console (deployment gates these at the proxy).
-  app.get("/dashboard", async (c) =>
-    c.json(await buildDashboard({ store: deps.store, audit: deps.audit })),
-  );
+  // Joins the config quotas (if a config store is wired) so the console can render
+  // quota-utilization bars from `active` vs. the limits.
+  app.get("/dashboard", async (c) => {
+    const data = await buildDashboard({ store: deps.store, audit: deps.audit });
+    const quotas = deps.config ? (await deps.config.get()).quotas : undefined;
+    return c.json(quotas ? { ...data, quotas } : data);
+  });
 
   app.get("/audit", async (c) => {
     const factio = c.req.query("factio");

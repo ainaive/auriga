@@ -28,6 +28,10 @@ export interface Dashboard {
   totals: { jobs: number; tenants: number; cost_usd: number };
   tenants: TenantSummary[];
   recentAudit: { id: string; ts: string; factio: string; action: string; job_id: string | null }[];
+  costTrend: { bucket: string; jobs: number; cost_usd: number }[];
+  byModel: { model: string; jobs: number; cost_usd: number }[];
+  active: { factio: string; active: number }[];
+  quotas?: { global: number; perFactio: number };
 }
 
 export interface Job {

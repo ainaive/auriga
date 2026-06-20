@@ -165,6 +165,18 @@ test("dashboard + console render", async () => {
   expect(await home.text()).toContain("Auriga");
 });
 
+test("GET /dashboard includes config quotas only when a config store is wired", async () => {
+  const open = (await (await createApp(deps()).request("/dashboard")).json()) as {
+    quotas?: unknown;
+  };
+  expect(open.quotas).toBeUndefined();
+
+  const withCfg = (await (
+    await createApp({ ...deps(), config: new InMemoryConfigStore() }).request("/dashboard")
+  ).json()) as { quotas?: { global: number } };
+  expect(withCfg.quotas?.global).toBe(2); // InMemoryConfigStore default
+});
+
 test("skills endpoint returns [] without a marketplace", async () => {
   const app = createApp(deps());
   expect(await (await app.request("/skills")).json()).toEqual([]);

@@ -46,3 +46,32 @@ test("buildDashboard rolls up per-tenant counts, states, and cost + recent audit
 
   expect(dash.recentAudit[0]?.action).toBe("job.completed");
 });
+
+test("buildDashboard reports cost trend, per-model breakdown, and active counts", async () => {
+  const store = new InMemoryJobStore();
+  await store.create(spec("a1", "t1"));
+  await store.create(spec("a2", "t1"));
+  await store.create(spec("b1", "t2"));
+  await store.update("a1", {
+    state: "done",
+    model: "claude-sonnet-4-6",
+    usage: { input_tokens: 1_000_000, output_tokens: 0 },
+  });
+  await store.update("a2", { state: "failed" }); // no model → "—", cost 0
+  await store.update("b1", { state: "running" });
+
+  const dash = await buildDashboard({ store });
+
+  // per-model: priced model first; unpriced/null grouped as "—" with cost 0
+  expect(dash.byModel[0]).toMatchObject({ model: "claude-sonnet-4-6", jobs: 1 });
+  expect(dash.byModel[0]?.cost_usd).toBeCloseTo(3, 5);
+  expect(dash.byModel.find((m) => m.model === "—")).toMatchObject({ jobs: 2, cost_usd: 0 });
+
+  // cost trend: all created today → one bucket summing to the org total
+  expect(dash.costTrend).toHaveLength(1);
+  expect(dash.costTrend[0]).toMatchObject({ jobs: 3 });
+  expect(dash.costTrend[0]?.cost_usd).toBeCloseTo(3, 5);
+
+  // active: only the running job (t2)
+  expect(dash.active).toEqual([{ factio: "t2", active: 1 }]);
+});

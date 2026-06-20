@@ -49,7 +49,7 @@ x-auriga-role:   <role>
 | `POST` | `/jobs/:id/cancel` | tenant | Cooperative cancellation (signals an active run, marks an idle one) | `200`, `401`, `404`, `409` |
 | `GET` | `/config` | open | Current RBAC policies + quotas | `200`, `501` |
 | `PUT` | `/config` | admin | Replace policies + quotas (admin role); validated + audited | `200`, `400`, `401`, `403`, `501` |
-| `GET` | `/dashboard` | open | Org-wide totals + per-tenant rollup | `200` |
+| `GET` | `/dashboard` | open | Org rollup: totals, per-tenant, cost trend, per-model, active vs. quotas | `200` |
 | `GET` | `/audit` | open | Audit events; `?factio=F` filters | `200` |
 | `GET` | `/skills` | open | Marketplace; `?q=`, `?factio=` (default `default`), `?role=` (default `viewer`) | `200` |
 | `GET` | `/` | open | Minimal served HTML console | `200` |
