@@ -1,59 +1,69 @@
 @import "tailwindcss";
 
 /*
- * Auriga console design tokens. One design system: a calm, dense, neutral base
- * with a single near-black accent; semantic state colors live with the Badge.
- * Dark mode follows the OS via prefers-color-scheme (Tailwind v4's default
- * `dark:` variant keys on the same media query, so both stay in sync).
+ * Auriga console design tokens. One design system: a warm, tactile, layered base —
+ * a soft cream / charcoal neutral ramp (no brand color), depth from layered shadows
+ * and hairline rings, and a faint paper grain over the page. Semantic state colors
+ * live with the Badge. Dark mode follows the OS via prefers-color-scheme (Tailwind
+ * v4's default `dark:` variant keys on the same media query, so both stay in sync).
  */
 :root {
-  --background: 0 0% 100%;
-  --foreground: 240 10% 4%;
-  --card: 0 0% 100%;
-  --card-foreground: 240 10% 4%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 240 10% 4%;
-  --primary: 240 6% 10%;
-  --primary-foreground: 0 0% 98%;
-  --secondary: 240 5% 96%;
-  --secondary-foreground: 240 6% 10%;
-  --muted: 240 5% 96%;
-  --muted-foreground: 240 4% 44%;
-  --accent: 240 5% 95%;
-  --accent-foreground: 240 6% 10%;
+  --background: 40 22% 97%;
+  --foreground: 28 9% 12%;
+  --card: 40 40% 99%;
+  --card-foreground: 28 9% 12%;
+  --popover: 40 40% 99%;
+  --popover-foreground: 28 9% 12%;
+  --primary: 28 11% 15%;
+  --primary-foreground: 40 30% 98%;
+  --secondary: 40 16% 93%;
+  --secondary-foreground: 28 11% 15%;
+  --muted: 40 16% 93%;
+  --muted-foreground: 30 6% 40%;
+  --accent: 38 18% 90%;
+  --accent-foreground: 28 11% 15%;
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 98%;
-  --border: 240 6% 90%;
-  --input: 240 6% 88%;
-  --ring: 240 6% 30%;
-  --radius: 0.625rem;
+  --border: 36 16% 87%;
+  --input: 36 15% 84%;
+  --ring: 30 9% 32%;
+  --radius: 0.75rem;
+
+  /* A single faint paper grain, reused by the body and elevated surfaces. */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --grain-opacity: 0.03;
+  --grain-opacity-surface: 0.035;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: 240 10% 4%;
-    --foreground: 0 0% 96%;
-    --card: 240 9% 7%;
-    --card-foreground: 0 0% 96%;
-    --popover: 240 9% 7%;
-    --popover-foreground: 0 0% 96%;
-    --primary: 0 0% 96%;
-    --primary-foreground: 240 6% 10%;
-    --secondary: 240 4% 14%;
-    --secondary-foreground: 0 0% 96%;
-    --muted: 240 4% 14%;
-    --muted-foreground: 240 5% 64%;
-    --accent: 240 4% 16%;
-    --accent-foreground: 0 0% 96%;
+    --background: 30 8% 7%;
+    --foreground: 40 16% 92%;
+    --card: 30 7% 11%;
+    --card-foreground: 40 16% 92%;
+    --popover: 30 7% 11%;
+    --popover-foreground: 40 16% 92%;
+    --primary: 40 18% 92%;
+    --primary-foreground: 28 11% 12%;
+    --secondary: 30 6% 16%;
+    --secondary-foreground: 40 16% 92%;
+    --muted: 30 6% 16%;
+    --muted-foreground: 38 9% 62%;
+    --accent: 30 6% 19%;
+    --accent-foreground: 40 16% 92%;
     --destructive: 0 62% 47%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 4% 16%;
-    --input: 240 4% 18%;
-    --ring: 240 5% 70%;
+    --border: 36 7% 20%;
+    --input: 36 7% 22%;
+    --ring: 40 12% 70%;
+
+    --grain-opacity: 0.05;
+    --grain-opacity-surface: 0.05;
   }
 }
 
-/* Map the tokens onto Tailwind color utilities (bg-background, text-muted-foreground, …). */
+/* Map the tokens onto Tailwind color utilities (bg-background, text-muted-foreground, …)
+ * plus the layered shadow + radius scale used by the primitives. */
 @theme inline {
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
@@ -74,9 +84,14 @@
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
+  --radius-xl: calc(var(--radius) + 4px);
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
+  /* Soft, warm-tinted layered shadows. Light-mode tuned; on dark the hairline
+   * ring + border carry the elevation, so the faint shadow simply recedes. */
+  --shadow-card: 0 1px 2px -1px hsl(28 20% 12% / 0.06), 0 4px 12px -4px hsl(28 20% 12% / 0.08);
+  --shadow-card-lg: 0 2px 6px -2px hsl(28 20% 12% / 0.08), 0 12px 28px -8px hsl(28 20% 12% / 0.12);
 }
 
 @layer base {
@@ -87,12 +102,59 @@
   }
   body {
     background-color: hsl(var(--background));
+    /* A soft warm wash from the top gives the page gentle depth. */
+    background-image: radial-gradient(
+      48rem 32rem at 50% -8%,
+      hsl(40 36% 88% / 0.55),
+      transparent 70%
+    );
     color: hsl(var(--foreground));
     font-family:
       ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    letter-spacing: -0.005em;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
+  @media (prefers-color-scheme: dark) {
+    body {
+      background-image: radial-gradient(
+        48rem 32rem at 50% -8%,
+        hsl(40 18% 40% / 0.12),
+        transparent 70%
+      );
+    }
+  }
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.013em;
+  }
+}
+
+/* Faint paper grain over the whole page (behind content). */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--grain);
+  opacity: var(--grain-opacity);
+}
+
+/* Opt-in grain for elevated surfaces (cards, panels) — gives them a tactile face. */
+.auriga-grain {
+  position: relative;
+}
+.auriga-grain::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image: var(--grain);
+  opacity: var(--grain-opacity-surface);
 }
 
 /* A soft pulse for the live "running" indicator dot. */
