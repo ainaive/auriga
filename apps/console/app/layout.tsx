@@ -10,34 +10,47 @@ export const metadata: Metadata = {
   description: "Auriga control-plane console",
 };
 
+const NAV = [
+  { href: "/", label: "Dashboard" },
+  { href: "/jobs", label: "Jobs" },
+  { href: "/skills", label: "Skills" },
+  { href: "/config", label: "Config" },
+];
+
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const session = await getSession();
   return (
     <html lang="en">
-      <body className="mx-auto max-w-5xl bg-neutral-50 p-6 font-sans text-neutral-900">
-        <header className="mb-6 flex items-baseline gap-4">
-          <Link href="/" className="text-lg font-bold">
-            Auriga
-          </Link>
-          <nav className="flex gap-3 text-sm text-neutral-600">
-            <Link href="/">Dashboard</Link>
-            <Link href="/jobs">Jobs</Link>
-            <Link href="/skills">Skills</Link>
-            <Link href="/config">Config</Link>
-            <Link href="/jobs/new" className="font-medium text-neutral-900">
-              + New job
+      <body className="min-h-screen bg-background text-foreground">
+        <header className="sticky top-0 z-20 border-b bg-background/80 backdrop-blur">
+          <div className="mx-auto flex h-12 max-w-6xl items-center gap-5 px-6">
+            <Link href="/" className="text-sm font-bold tracking-tight">
+              Auriga
             </Link>
-          </nav>
-          {session && (
-            <span className="ml-auto flex items-baseline gap-3 text-sm text-neutral-500">
-              <span>
-                {session.factio} · {session.role}
-              </span>
-              <LogoutButton />
-            </span>
-          )}
+            <nav className="flex items-center gap-4 text-sm text-muted-foreground">
+              {NAV.map((n) => (
+                <Link key={n.href} href={n.href} className="transition-colors hover:text-foreground">
+                  {n.label}
+                </Link>
+              ))}
+              <Link
+                href="/jobs/new"
+                className="font-medium text-foreground transition-colors hover:text-foreground/80"
+              >
+                + New job
+              </Link>
+            </nav>
+            {session && (
+              <div className="ml-auto flex items-center gap-3 text-sm text-muted-foreground">
+                <span className="tabular-nums">
+                  {session.factio} · {session.role}
+                </span>
+                <LogoutButton />
+              </div>
+            )}
+          </div>
         </header>
-        {children}
+        <main className="mx-auto max-w-6xl px-6 py-6">{children}</main>
       </body>
     </html>
   );

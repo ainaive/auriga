@@ -130,6 +130,26 @@ export async function saveConfig(json: string): Promise<SaveConfigResult> {
   return { ok: true };
 }
 
+export type PauseResult = { ok: true } | { ok: false; error: string };
+
+/** Request a (resumable) pause of an active run — stops cooperatively at the next attempt boundary. */
+export async function pauseJob(id: string): Promise<PauseResult> {
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}/jobs/${encodeURIComponent(id)}/pause`, {
+      method: "POST",
+      headers: await authHeaders(),
+      cache: "no-store",
+    });
+  } catch {
+    return { ok: false, error: "API unreachable" };
+  }
+  if (!res.ok) return { ok: false, error: await errorOf(res) };
+  revalidatePath(`/jobs/${id}`);
+  revalidatePath("/jobs");
+  return { ok: true };
+}
+
 /** Kick a job to run in the background (dev-grade in-process execution; needs ANTHROPIC_API_KEY). */
 export async function runJob(id: string): Promise<RunResult> {
   let res: Response;

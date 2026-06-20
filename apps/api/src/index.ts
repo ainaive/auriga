@@ -1,6 +1,12 @@
 #!/usr/bin/env bun
 import { join } from "node:path";
-import { FileAuditLog, FileConfigStore, FileJobStore, StoreBackedPolicy } from "@auriga/habenae";
+import {
+  FileAuditLog,
+  FileConfigStore,
+  FileJobStore,
+  InMemoryEventBus,
+  StoreBackedPolicy,
+} from "@auriga/habenae";
 import { createApp } from "./app";
 import { createRunner } from "./runner";
 
@@ -23,14 +29,19 @@ const port = parsePort(process.env.PORT);
 const store = new FileJobStore(home);
 const audit = new FileAuditLog(home);
 const config = await FileConfigStore.open(home);
+// In-process live event bus: the runner (publisher) and the SSE endpoint (subscriber)
+// share one instance, so a browser can watch a run stream step by step. The production
+// cross-process path uses the Postgres LISTEN/NOTIFY bus instead.
+const bus = new InMemoryEventBus();
 const app = createApp({
   store,
   audit,
   config,
+  bus,
   // RBAC reads from the (web-editable) config store, so edits take effect without a restart.
   policy: new StoreBackedPolicy(config),
   // In-process background runner (undefined without ANTHROPIC_API_KEY → /run answers 503).
-  runJob: createRunner(store, audit)?.run,
+  runJob: createRunner(store, audit, bus)?.run,
 });
 
 console.log(`auriga api listening on http://localhost:${port}`);

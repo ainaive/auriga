@@ -50,7 +50,7 @@ packages/
   chatops/        chat command layer + Slack adapter (Phase 5)
 apps/
   api/            Hono system API (Phase 3+)
-  console/        Next.js + Tailwind + shadcn console (Phase 2+, deploys to Vercel)
+  console/        Next.js + Tailwind 4 + shadcn/ui console — primary web surface, live runs (Phase 6)
 ```
 
 ## Toolchain
@@ -69,8 +69,9 @@ docker compose up -d # start Postgres + MinIO (requires Docker)
 
 ## Status
 
-All five phases (0–5) are complete. See [`docs/`](./docs) for the architecture, CLI, API, and contributor
-guides; the phase-by-phase status below summarizes what each delivered.
+Phases 0–5 are complete; **Phase 6 (web-first)** is in progress — making the Next.js console the primary
+surface, starting with a real-time live-run experience. See [`docs/`](./docs) for the architecture, CLI,
+API, and contributor guides; the phase-by-phase status below summarizes what each delivered.
 
 - **Phase 0 — contracts + foundation:** ✅ done (job schema, provider seam, skill contract + verify, interim registry, hello-world loop).
 - **Phase 1 — minimum viable harness:** ✅ done. One job type ("fix a failing test → green") runs end to end: submit a spec → Plan-Execute-Verify loop in an isolated sandbox with allowlisted tools → a skill loaded via the full seam (progressive disclosure → fetch → signature-verify → mount) → verification gate runs the acceptance command → `done` only on pass; checkpoint/resume on a fresh worker; token + cost recorded.
@@ -78,12 +79,14 @@ guides; the phase-by-phase status below summarizes what each delivered.
 - **Phase 3 — control plane + governance + multi-tenant:** ✅ done. A **scheduler** drains jobs respecting global + **per-tenant (factio) concurrency quotas** and a job **dependency DAG**; failed jobs are **retried** with backoff; **model routing** (the "reasoning sandwich" — strong model plans, fast model executes) is selected per job; an **RBAC policy gate** governs who may submit and which tools/skills are permitted (tenant-isolated); and a **skill usage feedback loop** records per-skill success/cost back to the registry. `auriga create`/`schedule` and `list --factio` expose it.
 - **Phase 4 — scale & governance:** ✅ (backend). An append-only **audit log** records every governed action; a **Hono HTTP API** (`apps/api`) exposes the control plane (jobs, governed submit/approve, dashboard, audit, skill marketplace) and serves a **minimal console**; **backend-agnostic provider routing** picks a provider/model per job (cost-aware: low-budget jobs run on a cheaper backend); a **skill marketplace** ranks skills by adoption; a **governance dashboard** rolls up per-tenant jobs/cost; **GitHub Actions CI** runs the gate on every PR. `auriga audit`/`dashboard`/`skills` expose it.
 - **Phase 5 — finish the surfaces & hardening:** ✅ done. **Biome** (lint/format) + **lefthook** git hooks + **commitlint** wired into `bun run check`; a CI **`integration` job** (Postgres service + `AURIGA_DOCKER_TESTS=1`) now runs the Docker sandbox, Postgres store/audit/triggers, and graphile-worker **for real** on the runner; the **Capella console** (`apps/console`: Next.js + Tailwind + shadcn-style) reads the API; **ChatOps** (`packages/chatops`: command parser + handler + Slack signature-verifying adapter) — all unit-tested (live Slack flow needs a real Slack app).
+- **Phase 6 — web-first:** 🚧 in progress. The Next.js console becomes the primary surface where users do everything end to end. Landed: an **`EventBus`** seam + a **live run** experience — the `Worker` publishes `state`/`trace`/`progress`(+cost)/`done` events, the API streams them over **SSE** (`GET /jobs/:id/events`, backfill-then-tail), and the console renders a real-time **step timeline** on a new **shadcn/ui** design system (Tailwind 4 tokens, accessible primitives), with its own Vitest gate + a CI job. Next: form-based job authoring, live pause/resume, governance/skills/trace surfaces, and the production Postgres `LISTEN/NOTIFY` bus.
 
 ### Try it
 
 ```bash
 bun install
-bun run check                      # typecheck + lint + tests (~197 tests, no Docker needed)
+bun run check                      # typecheck + lint + tests (no Docker needed)
+cd apps/console && bun run test && bun run build   # the console's own gate (Vitest + Next build)
 cd packages/currus && bun run hello   # hello-world loop (stub; set ANTHROPIC_API_KEY for live)
 ```
 
@@ -117,8 +120,12 @@ auriga submit job.json
 Without Docker, the CLI falls back to the non-isolated Local sandbox (with a warning);
 set `AURIGA_REQUIRE_DOCKER=1` to require real isolation.
 
-Run the control-plane API + console:
+Run the control-plane API, then the web console (the primary surface):
 
 ```bash
-AURIGA_HOME=.auriga/jobs bun apps/api/src/index.ts   # http://localhost:8787 (console at /)
+AURIGA_HOME=.auriga/jobs bun apps/api/src/index.ts   # control-plane API on http://localhost:8787
+cd apps/console && bun run dev                        # web console on http://localhost:3000
 ```
+
+The console reads/writes the API and streams live runs over SSE; open a job to watch the agent work
+step by step. (`apps/api` also serves a minimal fallback HTML console at `/`.)

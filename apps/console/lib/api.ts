@@ -3,6 +3,9 @@
 // importing the Bun/server packages.
 
 import { getActor } from "./session";
+import type { JobState, TraceEvent, Usage } from "./types";
+
+export type { JobState, TraceEvent, Usage } from "./types";
 
 export const BASE = process.env.NEXT_PUBLIC_AURIGA_API ?? "http://localhost:8787";
 
@@ -12,11 +15,6 @@ export const BASE = process.env.NEXT_PUBLIC_AURIGA_API ?? "http://localhost:8787
 export async function authHeaders(): Promise<Record<string, string>> {
   const actor = await getActor();
   return { "x-auriga-factio": actor.factio, "x-auriga-role": actor.role };
-}
-
-export interface Usage {
-  input_tokens: number;
-  output_tokens: number;
 }
 
 export interface TenantSummary {
@@ -35,18 +33,13 @@ export interface Dashboard {
 export interface Job {
   id: string;
   spec: { factio: string; goal: string; require_approval?: boolean };
-  state: string;
+  state: JobState;
   reason: string | null;
   model: string | null;
   approved: boolean;
   attempts: number;
   steps: number;
   usage: Usage;
-}
-
-export interface TraceEvent {
-  type: string;
-  [key: string]: unknown;
 }
 
 export interface Trace {

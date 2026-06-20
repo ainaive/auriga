@@ -41,7 +41,7 @@ agent-orchestration framework owns the control flow.**
 | [`@auriga/cli`](../packages/cli) | The `auriga` command-line surface (file-backed). See [cli.md](./cli.md). |
 | [`@auriga/chatops`](../packages/chatops) | Platform-agnostic chat command parser + handler + a Slack signature-verifying adapter. See [api.md](./api.md). |
 | [`apps/api`](../apps/api) | A Hono HTTP API over the control plane + a minimal served console. See [api.md](./api.md). |
-| [`apps/console`](../apps/console) | A Next.js + Tailwind + shadcn-style read-side console (deploys to Vercel). |
+| [`apps/console`](../apps/console) | The **primary web surface** — a Next.js + Tailwind 4 + shadcn/ui console with a live (SSE) run timeline (deploys to Vercel). |
 
 The CLI, HTTP API, ChatOps, and console are all thin **surfaces** over the same control plane (Habenae),
 so RBAC, tenancy, and governance are enforced once and shared.
@@ -164,10 +164,22 @@ the engine is testable hermetically and adaptable in production. **Self-built** 
 | `ModelProvider` | [`core/src/provider/types.ts`](../packages/core/src/provider/types.ts) | `AnthropicProvider`, `StubProvider`, `ReplayProvider` | glued (SDK) |
 | `SkillRegistry` | [`core/src/skill/types.ts`](../packages/core/src/skill/types.ts) | `LocalSkillRegistry` (`openDevRegistry`) | self-built (interim) |
 | `AuditLog` | [`habenae/src/audit.ts`](../packages/habenae/src/audit.ts) | `InMemoryAuditLog`, `FileAuditLog`, `PostgresAuditLog` | self-built |
-| `Policy` | [`habenae/src/governance.ts`](../packages/habenae/src/governance.ts) | `InMemoryPolicy` | self-built |
+| `Policy` | [`habenae/src/governance.ts`](../packages/habenae/src/governance.ts) | `InMemoryPolicy`, `StoreBackedPolicy` | self-built |
+| `EventBus` | [`habenae/src/event-bus.ts`](../packages/habenae/src/event-bus.ts) | `InMemoryEventBus`, `PostgresEventBus` (LISTEN/NOTIFY) | self-built |
 
 The hermetic default test gate uses the in-memory/file/local/stub drivers; the live Postgres + Docker +
 graphile drivers are exercised by the CI `integration` job (see [CONTRIBUTING](../CONTRIBUTING.md)).
+
+### Live run events
+
+`Worker` optionally publishes to an [`EventBus`](../packages/habenae/src/event-bus.ts) as a run unfolds:
+lifecycle `state` transitions, each `TraceEvent` (teed from the `Recorder`, so the sealed trace is
+unchanged), `progress` (attempt/steps/usage + live cost), and a terminal `done`. Each event is wrapped in
+a `JobEventEnvelope` with a per-job monotonic `seq`. The HTTP API exposes them over SSE at
+`GET /jobs/:id/events` (backfill-then-tail via `Last-Event-ID`); the Next.js console renders them as a live
+step timeline (see [api.md](./api.md)). `InMemoryEventBus` serves the in-process dev/test path;
+`PostgresEventBus` (a durable `job_events` log + `LISTEN/NOTIFY`, selected via `selectEventBus`) bridges the
+production cross-process (graphile-worker) path with the same `seq` semantics.
 
 ## Domain model
 
@@ -192,4 +204,6 @@ The contracts a developer must understand live in [`@auriga/core`](../packages/c
   `ContentBlock`, `GenerateRequest`, `ModelResponse`, `ToolDefinition`, and the `ModelProvider` interface.
 - **Trace model** ([`core/src/trace/types.ts`](../packages/core/src/trace/types.ts)) — an ordered list of
   `model_response | tool_call | skill_loaded | compaction | verify` events; the substrate for
-  observability, cost, replay, and evals.
+  observability, cost, replay, and evals. The same file defines **`JobLiveEvent`** /
+  **`JobEventEnvelope`** — the incremental, sequenced events streamed live while a run is in flight (the
+  `EventBus` seam), reusing the `TraceEvent` union so live and sealed views share one renderer.

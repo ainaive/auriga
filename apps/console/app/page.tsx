@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { api } from "@/lib/api";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 
@@ -6,23 +8,14 @@ export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const dash = await api.dashboard();
-  if (!dash) return <p className="text-neutral-500">API unavailable.</p>;
+  if (!dash) return <p className="text-muted-foreground">API unavailable.</p>;
 
   return (
-    <main className="space-y-6">
-      <div className="grid grid-cols-3 gap-4">
-        <Card>
-          <CardTitle>Jobs</CardTitle>
-          <p className="text-2xl font-semibold">{dash.totals.jobs}</p>
-        </Card>
-        <Card>
-          <CardTitle>Tenants</CardTitle>
-          <p className="text-2xl font-semibold">{dash.totals.tenants}</p>
-        </Card>
-        <Card>
-          <CardTitle>Cost</CardTitle>
-          <p className="text-2xl font-semibold">~${dash.totals.cost_usd.toFixed(4)}</p>
-        </Card>
+    <div className="space-y-6">
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Stat label="Jobs" value={dash.totals.jobs.toLocaleString()} />
+        <Stat label="Tenants" value={dash.totals.tenants.toLocaleString()} />
+        <Stat label="Cost" value={`~$${dash.totals.cost_usd.toFixed(4)}`} />
       </div>
 
       <Card>
@@ -39,14 +32,18 @@ export default async function DashboardPage() {
           <TBody>
             {dash.tenants.map((t) => (
               <TR key={t.factio}>
-                <TD>{t.factio}</TD>
-                <TD>{t.total}</TD>
+                <TD className="font-medium">{t.factio}</TD>
+                <TD className="tabular-nums">{t.total}</TD>
                 <TD>
-                  {Object.entries(t.byState)
-                    .map(([k, v]) => `${k}:${v}`)
-                    .join(" ")}
+                  <span className="flex flex-wrap gap-1">
+                    {Object.entries(t.byState).map(([k, v]) => (
+                      <Badge key={k} tone={k}>
+                        {k} {v}
+                      </Badge>
+                    ))}
+                  </span>
                 </TD>
-                <TD>~${t.cost_usd.toFixed(4)}</TD>
+                <TD className="tabular-nums">~${t.cost_usd.toFixed(4)}</TD>
               </TR>
             ))}
           </TBody>
@@ -58,7 +55,7 @@ export default async function DashboardPage() {
         <Table>
           <THead>
             <TR>
-              <TH>ts</TH>
+              <TH>time</TH>
               <TH>factio</TH>
               <TH>action</TH>
               <TH>job</TH>
@@ -67,15 +64,34 @@ export default async function DashboardPage() {
           <TBody>
             {dash.recentAudit.map((e) => (
               <TR key={e.id}>
-                <TD>{e.ts}</TD>
+                <TD className="whitespace-nowrap text-xs text-muted-foreground tabular-nums">
+                  {new Date(e.ts).toLocaleString()}
+                </TD>
                 <TD>{e.factio}</TD>
-                <TD>{e.action}</TD>
-                <TD>{e.job_id ?? ""}</TD>
+                <TD className="font-mono text-xs">{e.action}</TD>
+                <TD className="font-mono text-xs">
+                  {e.job_id ? (
+                    <Link href={`/jobs/${e.job_id}`} className="text-foreground hover:underline">
+                      {e.job_id}
+                    </Link>
+                  ) : (
+                    ""
+                  )}
+                </TD>
               </TR>
             ))}
           </TBody>
         </Table>
       </Card>
-    </main>
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <Card>
+      <CardTitle>{label}</CardTitle>
+      <p className="text-2xl font-semibold tabular-nums">{value}</p>
+    </Card>
   );
 }

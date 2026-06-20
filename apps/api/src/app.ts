@@ -1,6 +1,13 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { isTerminal, parseJobSpec, PolicyError, type JobState } from "@auriga/core";
+import { streamSSE } from "hono/streaming";
+import {
+  isTerminal,
+  parseJobSpec,
+  PolicyError,
+  type JobEventEnvelope,
+  type JobState,
+} from "@auriga/core";
 import {
   buildDashboard,
   parseConfig,
@@ -8,6 +15,7 @@ import {
   submitJob,
   type AuditLog,
   type ConfigStore,
+  type EventBus,
   type JobStore,
   type Policy,
 } from "@auriga/habenae";
@@ -24,10 +32,18 @@ export interface ApiDeps {
   runJob?: (jobId: string) => void;
   /** Optional runtime config store (policies + quotas). Absent → /config is 501. */
   config?: ConfigStore;
+  /** Optional live event bus. Absent → GET /jobs/:id/events is 501. */
+  bus?: EventBus;
 }
 
 /** Job states for which a run is already in progress (a new run is rejected). */
 const ACTIVE_STATES = ["planning", "running", "verifying"];
+
+/** Parse a Last-Event-ID / ?after= cursor into a non-negative seq (0 = from the start). */
+function toSeq(raw: string | undefined): number {
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
 
 /** Caller identity from headers. In production the API sits behind the platform's
  *  OIDC/auth gateway; these headers carry the resolved tenant + role. */
@@ -71,6 +87,73 @@ export function createApp(deps: ApiDeps): Hono {
     if (!rec || rec.spec.factio !== actor.factio) return c.json({ error: "not found" }, 404);
     const trace = await deps.store.loadTrace(c.req.param("id"));
     return trace ? c.json(trace) : c.json({ error: "no trace" }, 404);
+  });
+
+  // Live run events (SSE). Tenant-scoped like /jobs/:id/trace. Backfills via
+  // Last-Event-ID / ?after= then tails the bus until the terminal `done` envelope.
+  // Subscribe BEFORE backfilling so no event slips through the gap; write() dedupes
+  // the replay/live overlap on the monotonic per-job `seq`.
+  app.get("/jobs/:id/events", async (c) => {
+    const actor = actorOf(c);
+    if (!actor) return c.json({ error: "auth required" }, 401);
+    const id = c.req.param("id");
+    const rec = await deps.store.get(id);
+    if (!rec || rec.spec.factio !== actor.factio) return c.json({ error: "not found" }, 404);
+    if (!deps.bus) return c.json({ error: "events not available" }, 501);
+    const bus = deps.bus;
+    const after = toSeq(c.req.header("Last-Event-ID") ?? c.req.query("after"));
+
+    return streamSSE(c, async (stream) => {
+      let lastSeq = after;
+      const write = async (env: JobEventEnvelope) => {
+        if (env.seq <= lastSeq) return; // skip anything already delivered
+        lastSeq = env.seq;
+        await stream.writeSSE({ id: String(env.seq), data: JSON.stringify(env.data) });
+      };
+
+      const buffered: JobEventEnvelope[] = [];
+      let wake: (() => void) | undefined;
+      let aborted = false;
+      // Subscribe (awaiting LISTEN attachment) BEFORE backfilling so no event slips
+      // through the gap; write() dedupes the replay/live overlap on `seq`.
+      const unsub = await bus.subscribe(id, (env) => {
+        buffered.push(env);
+        wake?.();
+      });
+      stream.onAbort(() => {
+        aborted = true;
+        wake?.();
+      });
+
+      try {
+        let done = false;
+        const flush = async (envs: JobEventEnvelope[]) => {
+          for (const env of envs) {
+            await write(env);
+            if (env.data.kind === "done") done = true;
+          }
+        };
+        await flush(await bus.replay(id, after));
+        while (!done && !aborted) {
+          if (buffered.length === 0) {
+            await new Promise<void>((resolve) => {
+              wake = resolve;
+              // Guard the race: if an event arrived or the client aborted between the
+              // emptiness check and this assignment, resolve now instead of hanging.
+              if (aborted || buffered.length > 0) {
+                wake = undefined;
+                resolve();
+              }
+            });
+            wake = undefined;
+            continue;
+          }
+          await flush(buffered.splice(0, buffered.length));
+        }
+      } finally {
+        unsub();
+      }
+    });
   });
 
   app.post("/jobs", async (c) => {
@@ -131,8 +214,9 @@ export function createApp(deps: ApiDeps): Hono {
     if (ACTIVE_STATES.includes(rec.state))
       return c.json({ error: `job is already ${rec.state}` }, 409);
     if (rec.spec.require_approval && !rec.approved) return c.json({ error: "approve first" }, 409);
-    // Clear any stale cancel signal so re-running a cancelled/failed job isn't cancelled at once.
-    if (rec.cancel_requested) await deps.store.update(id, { cancel_requested: false });
+    // Clear any stale cancel/pause signal so re-running (or resuming) doesn't stop at once.
+    if (rec.cancel_requested || rec.pause_requested)
+      await deps.store.update(id, { cancel_requested: false, pause_requested: false });
     deps.runJob(id);
     await safeAudit(deps.audit, {
       factio: rec.spec.factio,
@@ -171,6 +255,27 @@ export function createApp(deps: ApiDeps): Hono {
       job_id: id,
     });
     return c.json({ cancelling: active, state: active ? rec.state : "cancelled" });
+  });
+
+  // Cooperative pause: signals an active run to stop resumably at its next attempt
+  // boundary (state → `paused`, checkpoint kept). Resume via POST /jobs/:id/run, which
+  // clears the pause signal. Only an active run can be paused.
+  app.post("/jobs/:id/pause", async (c) => {
+    const actor = actorOf(c);
+    if (!actor) return c.json({ error: "auth required" }, 401);
+    const id = c.req.param("id");
+    const rec = await deps.store.get(id);
+    if (!rec || rec.spec.factio !== actor.factio) return c.json({ error: "not found" }, 404);
+    if (!ACTIVE_STATES.includes(rec.state))
+      return c.json({ error: `cannot pause a ${rec.state} job` }, 409);
+    await deps.store.update(id, { pause_requested: true });
+    await safeAudit(deps.audit, {
+      factio: rec.spec.factio,
+      actor: actor.role,
+      action: "job.pause_requested",
+      job_id: id,
+    });
+    return c.json({ pausing: true });
   });
 
   // Runtime config: GET is an open governance view; PUT rewrites RBAC/quotas so it

@@ -1,13 +1,17 @@
+import { JobForm } from "@/components/job-form";
 import { Card, CardTitle } from "@/components/ui/card";
-import { NewJobForm } from "@/components/new-job-form";
+import { getActor } from "@/lib/session";
 
-export default function NewJobPage() {
+export const dynamic = "force-dynamic";
+
+export default async function NewJobPage() {
+  const actor = await getActor();
   return (
-    <main>
+    <div className="mx-auto max-w-3xl">
       <Card>
         <CardTitle>New job</CardTitle>
-        <NewJobForm />
+        <JobForm factio={actor.factio} createdBy={`${actor.role}@${actor.factio}`} />
       </Card>
-    </main>
+    </div>
   );
 }

@@ -8,46 +8,46 @@ export const dynamic = "force-dynamic";
 
 export default async function JobsPage() {
   const jobs = await api.jobs();
-  if (!jobs) return <p className="text-neutral-500">API unavailable or unauthorized.</p>;
+  if (!jobs) return <p className="text-muted-foreground">API unavailable or unauthorized.</p>;
 
   return (
-    <main>
-      <Card>
-        <CardTitle>Jobs</CardTitle>
-        {jobs.length === 0 ? (
-          <p className="text-neutral-500">No jobs.</p>
-        ) : (
-          <Table>
-            <THead>
-              <TR>
-                <TH>id</TH>
-                <TH>state</TH>
-                <TH>goal</TH>
-                <TH>steps</TH>
+    <Card>
+      <CardTitle>Jobs</CardTitle>
+      {jobs.length === 0 ? (
+        <p className="text-muted-foreground">No jobs yet.</p>
+      ) : (
+        <Table>
+          <THead>
+            <TR>
+              <TH>id</TH>
+              <TH>state</TH>
+              <TH>goal</TH>
+              <TH>steps</TH>
+            </TR>
+          </THead>
+          <TBody>
+            {jobs.map((j) => (
+              <TR key={j.id}>
+                <TD>
+                  <Link
+                    className="font-mono text-xs text-foreground hover:underline"
+                    href={`/jobs/${encodeURIComponent(j.id)}`}
+                  >
+                    {j.id}
+                  </Link>
+                </TD>
+                <TD>
+                  <Badge tone={j.state} dot>
+                    {j.state}
+                  </Badge>
+                </TD>
+                <TD className="text-muted-foreground">{j.spec.goal}</TD>
+                <TD className="tabular-nums">{j.steps}</TD>
               </TR>
-            </THead>
-            <TBody>
-              {jobs.map((j) => (
-                <TR key={j.id}>
-                  <TD>
-                    <Link
-                      className="text-blue-700 hover:underline"
-                      href={`/jobs/${encodeURIComponent(j.id)}`}
-                    >
-                      {j.id}
-                    </Link>
-                  </TD>
-                  <TD>
-                    <Badge tone={j.state}>{j.state}</Badge>
-                  </TD>
-                  <TD>{j.spec.goal}</TD>
-                  <TD>{j.steps}</TD>
-                </TR>
-              ))}
-            </TBody>
-          </Table>
-        )}
-      </Card>
-    </main>
+            ))}
+          </TBody>
+        </Table>
+      )}
+    </Card>
   );
 }

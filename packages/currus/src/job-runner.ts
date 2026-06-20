@@ -32,6 +32,11 @@ export interface CancellationGate {
   isCancelled(): Promise<boolean>;
 }
 
+/** Cooperative pause: whether a (resumable) pause has been requested for this job. */
+export interface PauseGate {
+  isPaused(): Promise<boolean>;
+}
+
 export type JobEvent =
   | { type: "attempt"; attempt: number; steps: number; usage: Usage }
   | { type: "verify"; attempt: number; passed: boolean; evidence: string };
@@ -79,6 +84,8 @@ export interface RunJobOptions {
   approvalGate?: ApprovalGate;
   /** Cooperative cancellation: polled between attempts and steps; true stops the run. */
   cancellationGate?: CancellationGate;
+  /** Cooperative pause: polled at each attempt boundary; true stops the run resumably (state `paused`). */
+  pauseGate?: PauseGate;
   /** Resume from a prior checkpoint instead of starting fresh. */
   resume?: JobResumeState;
   /** Called after each verify so the worker can snapshot + persist a checkpoint. */
@@ -168,6 +175,10 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
     // Cooperative cancellation: stop cleanly before starting another attempt.
     if (await isCancelled()) return finish("cancelled", "cancellation requested", attempt - 1);
 
+    // Cooperative pause: stop resumably at the attempt boundary. The previous attempt's
+    // checkpoint is already persisted, so resume (re-run) continues from there.
+    if (await isPaused()) return finish("paused", "paused by request", attempt - 1);
+
     const remainingSteps = spec.budget.max_steps - totalSteps;
     if (remainingSteps <= 0) {
       return finish("failed", "step budget exhausted");
@@ -234,6 +245,10 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
 
   function isCancelled(): Promise<boolean> {
     return opts.cancellationGate ? opts.cancellationGate.isCancelled() : Promise.resolve(false);
+  }
+
+  function isPaused(): Promise<boolean> {
+    return opts.pauseGate ? opts.pauseGate.isPaused() : Promise.resolve(false);
   }
 
   function flushSkillTrace(): void {

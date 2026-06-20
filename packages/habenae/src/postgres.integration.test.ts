@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
-import type { JobSpec, Trace } from "@auriga/core";
+import type { JobEventEnvelope, JobSpec, Trace } from "@auriga/core";
 import { Pool } from "pg";
 import { PostgresAuditLog } from "./audit";
+import { PostgresEventBus } from "./event-bus";
 import { GraphileQueue } from "./graphile-queue";
 import { migrate, PostgresJobStore } from "./postgres-store";
 
@@ -29,11 +30,12 @@ describe.if(Boolean(DATABASE_URL))("Postgres integration", () => {
     pool = new Pool({ connectionString: DATABASE_URL });
     await migrate(pool);
     await PostgresAuditLog.migrate(pool);
+    await PostgresEventBus.migrate(pool);
   });
 
   // Reset per-test so outcomes don't depend on execution order.
   beforeEach(async () => {
-    await pool.query("truncate jobs, checkpoints, traces cascade");
+    await pool.query("truncate jobs, checkpoints, traces, job_events cascade");
     await pool.query("truncate audit_events");
   });
 
@@ -105,6 +107,41 @@ describe.if(Boolean(DATABASE_URL))("Postgres integration", () => {
     // DB-level append-only: UPDATE/DELETE rejected by the triggers
     await expect(pool.query("update audit_events set action = 'x'")).rejects.toThrow(/append-only/);
     await expect(pool.query("delete from audit_events")).rejects.toThrow(/append-only/);
+  });
+
+  test("PostgresEventBus: monotonic seq, replay backfill, and cross-connection NOTIFY", async () => {
+    const publisher = new PostgresEventBus(pool);
+    // A second pool/connection subscribes — simulating the API process tailing events
+    // published by a separate graphile-worker process.
+    const subPool = new Pool({ connectionString: DATABASE_URL });
+    const subscriber = new PostgresEventBus(subPool);
+    const received: JobEventEnvelope[] = [];
+    const unsub = await subscriber.subscribe("pg_evt", (e) => received.push(e));
+
+    const a = await publisher.publish({
+      job_id: "pg_evt",
+      factio: "t1",
+      data: { kind: "state", state: "planning", reason: null },
+    });
+    const b = await publisher.publish({
+      job_id: "pg_evt",
+      factio: "t1",
+      data: { kind: "done", state: "done", reason: null },
+    });
+    expect(b.seq).toBeGreaterThan(a.seq);
+
+    // Durable backfill, in order + after-cursor filtering.
+    const all = await publisher.replay("pg_evt", 0);
+    expect(all.map((e) => e.data.kind)).toEqual(["state", "done"]);
+    expect(await publisher.replay("pg_evt", a.seq)).toHaveLength(1);
+
+    // NOTIFY fanned the events out to the other connection.
+    await new Promise((r) => setTimeout(r, 400));
+    expect(received.map((e) => e.data.kind)).toEqual(["state", "done"]);
+
+    unsub();
+    await subscriber.close();
+    await subPool.end();
   });
 
   test("GraphileQueue: migrate + enqueue against the live DB", async () => {
