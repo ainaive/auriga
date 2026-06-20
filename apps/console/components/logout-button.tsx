@@ -15,7 +15,7 @@ export function LogoutButton() {
         router.push("/login");
       })}
       disabled={pending}
-      className="text-sm text-neutral-600 hover:underline"
+      className="text-sm text-muted-foreground transition-colors hover:text-foreground"
     >
       {pending ? "…" : "logout"}
     </button>
