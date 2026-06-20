@@ -67,7 +67,11 @@ export function JobForm({ factio, createdBy }: { factio: string; createdBy: stri
 
   return (
     <div className="space-y-4">
-      <div role="tablist" aria-label="job spec input mode" className="flex gap-1 text-sm">
+      <div
+        role="tablist"
+        aria-label="job spec input mode"
+        className="inline-flex gap-1 rounded-lg bg-muted p-1 text-sm"
+      >
         <ModeTab active={mode === "form"} onClick={() => switchMode("form")}>
           Form
         </ModeTab>
@@ -192,12 +196,12 @@ export function JobForm({ factio, createdBy }: { factio: string; createdBy: stri
               type="checkbox"
               checked={form.requireApproval}
               onChange={(e) => set("requireApproval", e.target.checked)}
-              className="size-4 rounded border-input"
+              className="size-4 rounded border-input accent-foreground"
             />
             Require human approval before running (HITL)
           </label>
 
-          <details className="rounded-md border bg-muted/30 p-3">
+          <details className="rounded-lg border bg-muted/30 p-3">
             <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
               Advanced (skills, files, links, dependencies)
             </summary>
@@ -251,8 +255,8 @@ function ModeTab({
       onClick={onClick}
       className={
         active
-          ? "rounded-md bg-secondary px-2.5 py-1 font-medium text-secondary-foreground"
-          : "rounded-md px-2.5 py-1 text-muted-foreground hover:text-foreground"
+          ? "rounded-md bg-card px-2.5 py-1 font-medium text-foreground shadow-sm"
+          : "rounded-md px-2.5 py-1 text-muted-foreground transition-colors hover:text-foreground"
       }
     >
       {children}
@@ -272,7 +276,7 @@ function CriterionRow({
   onRemove?: () => void;
 }) {
   return (
-    <div className="rounded-md border bg-background p-2">
+    <div className="rounded-lg border bg-background p-2.5">
       <div className="flex items-center gap-2">
         <Select
           aria-label="criterion type"

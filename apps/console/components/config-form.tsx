@@ -76,7 +76,11 @@ export function ConfigForm({ initial, canEdit = true }: { initial: AurigaConfig;
 
   return (
     <div className="space-y-4">
-      <div role="tablist" aria-label="config input mode" className="flex gap-1 text-sm">
+      <div
+        role="tablist"
+        aria-label="config input mode"
+        className="inline-flex gap-1 rounded-lg bg-muted p-1 text-sm"
+      >
         <ModeTab active={mode === "form"} onClick={() => switchMode("form")}>
           Form
         </ModeTab>
@@ -184,8 +188,8 @@ function ModeTab({
       onClick={onClick}
       className={
         active
-          ? "rounded-md bg-secondary px-2.5 py-1 font-medium text-secondary-foreground"
-          : "rounded-md px-2.5 py-1 text-muted-foreground hover:text-foreground"
+          ? "rounded-md bg-card px-2.5 py-1 font-medium text-foreground shadow-sm"
+          : "rounded-md px-2.5 py-1 text-muted-foreground transition-colors hover:text-foreground"
       }
     >
       {children}
@@ -205,7 +209,7 @@ function PolicyRow({
   onRemove: () => void;
 }) {
   return (
-    <div className="rounded-md border bg-muted/30 p-3">
+    <div className="rounded-lg border bg-muted/30 p-3">
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Factio" hint="tenant id">
           <Input value={policy.factio} onChange={(e) => onChange({ ...policy, factio: e.target.value })} />
