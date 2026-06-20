@@ -10,12 +10,13 @@ export interface PagerBounds {
 }
 
 export function pagerBounds(total: number, limit: number, offset: number): PagerBounds {
+  const lim = Number.isInteger(limit) && limit > 0 ? limit : 1; // guard against Infinity/NaN pages
   return {
     from: total === 0 ? 0 : offset + 1,
-    to: Math.min(offset + limit, total),
+    to: Math.min(offset + lim, total),
     hasPrev: offset > 0,
-    hasNext: offset + limit < total,
-    page: Math.floor(offset / limit) + 1,
-    pages: Math.max(1, Math.ceil(total / limit)),
+    hasNext: offset + lim < total,
+    page: Math.floor(offset / lim) + 1,
+    pages: Math.max(1, Math.ceil(total / lim)),
   };
 }

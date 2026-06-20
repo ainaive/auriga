@@ -63,7 +63,7 @@ export default async function DashboardPage() {
                 value={totalActive}
                 max={dash.quotas.global}
                 valueLabel={`${totalActive} / ${dash.quotas.global}`}
-                warn={totalActive / dash.quotas.global >= 0.8}
+                warn={dash.quotas.global > 0 && totalActive / dash.quotas.global >= 0.8}
               />
               {dash.active.map((a) => (
                 <Bar
@@ -72,7 +72,10 @@ export default async function DashboardPage() {
                   value={a.active}
                   max={dash.quotas?.perFactio ?? 1}
                   valueLabel={`${a.active} / ${dash.quotas?.perFactio}`}
-                  warn={a.active / (dash.quotas?.perFactio ?? 1) >= 0.8}
+                  warn={
+                    (dash.quotas?.perFactio ?? 0) > 0 &&
+                    a.active / (dash.quotas?.perFactio ?? 1) >= 0.8
+                  }
                 />
               ))}
               {dash.active.length === 0 && (

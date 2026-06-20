@@ -22,7 +22,7 @@ export async function GET(
   try {
     upstream = await fetch(
       `${BASE}/jobs/${encodeURIComponent(id)}/workspace/file?path=${encodeURIComponent(path)}`,
-      { headers: await authHeaders(), cache: "no-store" },
+      { headers: await authHeaders(), cache: "no-store", signal: AbortSignal.timeout(10_000) },
     );
   } catch {
     return json({ error: "control plane unreachable" }, 502);

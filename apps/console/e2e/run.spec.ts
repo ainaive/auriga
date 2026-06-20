@@ -22,12 +22,15 @@ async function login(page: Page, role = "admin") {
   await page.waitForURL((u) => u.pathname === "/");
 }
 
-async function createJob(page: Page, id: string) {
+async function createJob(page: Page, prefix: string): Promise<string> {
+  // Unique per call so a Playwright retry can't collide with the prior attempt's job.
+  const id = `${prefix}_${Date.now().toString(36)}_${Math.floor(Math.random() * 1e6).toString(36)}`;
   await page.goto("/jobs/new");
   await page.getByRole("tab", { name: "Raw JSON" }).click();
   await page.getByPlaceholder("Paste a JobSpec as JSON…").fill(JSON.stringify(jobSpec(id)));
   await page.getByRole("button", { name: "Create job" }).click();
   await page.waitForURL(`**/jobs/${id}`);
+  return id;
 }
 
 test("submit → run → watch the live timeline reach done; workspace shows the file", async ({

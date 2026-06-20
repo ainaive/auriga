@@ -129,8 +129,16 @@ export function createApp(deps: ApiDeps): Hono {
     const offset = clampInt(c.req.query("offset"), 0, 0, Number.MAX_SAFE_INTEGER);
     if (offset === null) return c.json({ error: "invalid offset" }, 400);
     const q = c.req.query("q")?.toLowerCase();
-    const after = c.req.query("created_after");
-    const before = c.req.query("created_before");
+    const afterRaw = c.req.query("created_after");
+    const beforeRaw = c.req.query("created_before");
+    // Parse to epoch ms so date-only ISO inputs compare correctly and malformed
+    // values 400 (rather than silently misfiltering via raw string comparison).
+    const after = afterRaw ? Date.parse(afterRaw) : undefined;
+    const before = beforeRaw ? Date.parse(beforeRaw) : undefined;
+    if (after !== undefined && Number.isNaN(after))
+      return c.json({ error: "invalid created_after (ISO date)" }, 400);
+    if (before !== undefined && Number.isNaN(before))
+      return c.json({ error: "invalid created_before (ISO date)" }, 400);
 
     let jobs = await deps.store.listByFactio(actor.factio);
     if (state) jobs = jobs.filter((j) => j.state === state);
@@ -138,8 +146,8 @@ export function createApp(deps: ApiDeps): Hono {
       jobs = jobs.filter(
         (j) => j.id.toLowerCase().includes(q) || j.spec.goal.toLowerCase().includes(q),
       );
-    if (after) jobs = jobs.filter((j) => j.created_at >= after);
-    if (before) jobs = jobs.filter((j) => j.created_at <= before);
+    if (after !== undefined) jobs = jobs.filter((j) => Date.parse(j.created_at) >= after);
+    if (before !== undefined) jobs = jobs.filter((j) => Date.parse(j.created_at) <= before);
     // Newest first; stable tiebreak on id so paging is deterministic.
     jobs.sort((a, b) =>
       a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : a.id.localeCompare(b.id),

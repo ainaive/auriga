@@ -1,7 +1,7 @@
 "use client";
 
 import { File, Folder } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { buildFileTree, type FileNode } from "@/lib/file-tree";
 import type { WorkspaceEntry, WorkspaceFile } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -12,8 +12,10 @@ export function WorkspaceViewer({ jobId, files }: { jobId: string; files: Worksp
   const [selected, setSelected] = useState<string | null>(null);
   const [file, setFile] = useState<WorkspaceFile | null>(null);
   const [loading, setLoading] = useState(false);
+  const latest = useRef<string | null>(null);
 
   async function open(path: string) {
+    latest.current = path;
     setSelected(path);
     setFile(null);
     setLoading(true);
@@ -22,19 +24,18 @@ export function WorkspaceViewer({ jobId, files }: { jobId: string; files: Worksp
         `/api/jobs/${encodeURIComponent(jobId)}/workspace/file?path=${encodeURIComponent(path)}`,
         { cache: "no-store" },
       );
-      setFile(res.ok ? ((await res.json()) as WorkspaceFile) : null);
+      const data = res.ok ? ((await res.json()) as WorkspaceFile) : null;
+      if (latest.current === path) setFile(data); // ignore a response for a since-superseded click
     } catch {
-      setFile(null);
+      if (latest.current === path) setFile(null);
     } finally {
-      setLoading(false);
+      if (latest.current === path) setLoading(false);
     }
   }
 
   return (
     <div className="grid gap-3 sm:grid-cols-[16rem_1fr]">
       <div
-        // biome-ignore lint/a11y/useSemanticElements: a file tree is the canonical tree widget
-        role="tree"
         aria-label="workspace files"
         className="max-h-96 overflow-auto rounded-md border bg-muted/30 p-1 text-sm"
       >
@@ -97,8 +98,7 @@ function Tree({
           <li key={node.path}>
             <button
               type="button"
-              role="treeitem"
-              aria-selected={selected === node.path}
+              aria-current={selected === node.path ? "true" : undefined}
               onClick={() => onOpen(node.path)}
               className={cn(
                 "flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left hover:bg-accent",

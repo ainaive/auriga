@@ -124,6 +124,7 @@ test("GET /jobs filters (state/q/date), paginates, and stays tenant-scoped", asy
   expect((await app.request("/jobs?state=bogus", { headers: AUTH })).status).toBe(400);
   expect((await app.request("/jobs?limit=0", { headers: AUTH })).status).toBe(400);
   expect((await app.request("/jobs?limit=999", { headers: AUTH })).status).toBe(400);
+  expect((await app.request("/jobs?created_after=notadate", { headers: AUTH })).status).toBe(400);
 });
 
 test("policy-denied submit returns 403", async () => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -26,6 +26,16 @@ export function JobsFilterBar() {
   const [state, setState] = useState(params.get("state") ?? "");
   const [after, setAfter] = useState(params.get("after") ?? "");
   const [before, setBefore] = useState(params.get("before") ?? "");
+
+  // Re-sync the inputs when the URL filters change (Clear, back/forward, shared links).
+  const sp = params.toString();
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-sync only on the URL string
+  useEffect(() => {
+    setQ(params.get("q") ?? "");
+    setState(params.get("state") ?? "");
+    setAfter(params.get("after") ?? "");
+    setBefore(params.get("before") ?? "");
+  }, [sp]);
 
   function apply() {
     const next = new URLSearchParams();
