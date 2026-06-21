@@ -276,7 +276,7 @@ function CriterionRow({
   onRemove?: () => void;
 }) {
   return (
-    <div className="rounded-lg border bg-background p-2.5">
+    <div className="rounded-lg border bg-muted/30 p-2.5">
       <div className="flex items-center gap-2">
         <Select
           aria-label="criterion type"
