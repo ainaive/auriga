@@ -1,33 +1,51 @@
+import { CloudOff, DollarSign, Layers, Users } from "lucide-react";
 import Link from "next/link";
+import type { ComponentType } from "react";
 import { api } from "@/lib/api";
 import { Sparkline } from "@/components/sparkline";
 import { Badge } from "@/components/ui/badge";
 import { Bar } from "@/components/ui/bar";
 import { Card, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const dash = await api.dashboard();
-  if (!dash) return <p className="text-muted-foreground">API unavailable.</p>;
+  if (!dash) {
+    return (
+      <EmptyState
+        icon={CloudOff}
+        title="API unavailable"
+        description="The control-plane API could not be reached. Check that it's running and try again."
+      />
+    );
+  }
 
   const totalActive = dash.active.reduce((sum, a) => sum + a.active, 0);
   const maxModelCost = Math.max(...dash.byModel.map((m) => m.cost_usd), 0.0001);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight">Overview</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Control-plane activity across all tenants.
+        </p>
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-3">
-        <Stat label="Jobs" value={dash.totals.jobs.toLocaleString()} />
-        <Stat label="Tenants" value={dash.totals.tenants.toLocaleString()} />
-        <Stat label="Cost" value={`~$${dash.totals.cost_usd.toFixed(4)}`} />
+        <Stat label="Jobs" value={dash.totals.jobs.toLocaleString()} icon={Layers} />
+        <Stat label="Tenants" value={dash.totals.tenants.toLocaleString()} icon={Users} />
+        <Stat label="Cost" value={`~$${dash.totals.cost_usd.toFixed(4)}`} icon={DollarSign} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card>
           <CardTitle>Cost trend</CardTitle>
           <Sparkline values={dash.costTrend.map((p) => p.cost_usd)} ariaLabel="daily cost trend" />
-          <p className="mt-1 text-xs text-muted-foreground tabular-nums">
+          <p className="mt-2 text-xs text-muted-foreground tabular-nums">
             {dash.costTrend.length > 0
               ? `${dash.costTrend[0]?.bucket} → ${dash.costTrend.at(-1)?.bucket}`
               : "no data"}{" "}
@@ -40,7 +58,7 @@ export default async function DashboardPage() {
           {dash.byModel.length === 0 ? (
             <p className="text-sm text-muted-foreground">no data</p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {dash.byModel.slice(0, 6).map((m) => (
                 <Bar
                   key={m.model}
@@ -57,7 +75,7 @@ export default async function DashboardPage() {
         {dash.quotas && (
           <Card>
             <CardTitle>Quota utilization</CardTitle>
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               <Bar
                 label="global · active"
                 value={totalActive}
@@ -120,46 +138,61 @@ export default async function DashboardPage() {
 
       <Card>
         <CardTitle>Recent audit</CardTitle>
-        <Table>
-          <THead>
-            <TR>
-              <TH>time</TH>
-              <TH>factio</TH>
-              <TH>action</TH>
-              <TH>job</TH>
-            </TR>
-          </THead>
-          <TBody>
-            {dash.recentAudit.map((e) => (
-              <TR key={e.id}>
-                <TD className="whitespace-nowrap text-xs text-muted-foreground tabular-nums">
-                  {new Date(e.ts).toLocaleString()}
-                </TD>
-                <TD>{e.factio}</TD>
-                <TD className="font-mono text-xs">{e.action}</TD>
-                <TD className="font-mono text-xs">
-                  {e.job_id ? (
-                    <Link href={`/jobs/${e.job_id}`} className="text-foreground hover:underline">
-                      {e.job_id}
-                    </Link>
-                  ) : (
-                    ""
-                  )}
-                </TD>
+        {dash.recentAudit.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No recent activity.</p>
+        ) : (
+          <Table>
+            <THead>
+              <TR>
+                <TH>time</TH>
+                <TH>factio</TH>
+                <TH>action</TH>
+                <TH>job</TH>
               </TR>
-            ))}
-          </TBody>
-        </Table>
+            </THead>
+            <TBody>
+              {dash.recentAudit.map((e) => (
+                <TR key={e.id}>
+                  <TD className="whitespace-nowrap text-xs text-muted-foreground tabular-nums">
+                    {new Date(e.ts).toLocaleString()}
+                  </TD>
+                  <TD>{e.factio}</TD>
+                  <TD className="font-mono text-xs">{e.action}</TD>
+                  <TD className="font-mono text-xs">
+                    {e.job_id ? (
+                      <Link href={`/jobs/${e.job_id}`} className="text-foreground hover:underline">
+                        {e.job_id}
+                      </Link>
+                    ) : (
+                      ""
+                    )}
+                  </TD>
+                </TR>
+              ))}
+            </TBody>
+          </Table>
+        )}
       </Card>
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  icon?: ComponentType<{ className?: string }>;
+}) {
   return (
     <Card>
-      <CardTitle>{label}</CardTitle>
-      <p className="text-2xl font-semibold tabular-nums">{value}</p>
+      <div className="flex items-center justify-between gap-2">
+        <CardTitle className="mb-0">{label}</CardTitle>
+        {Icon && <Icon className="size-4 text-muted-foreground" />}
+      </div>
+      <p className="mt-3 text-3xl font-semibold tracking-tight tabular-nums">{value}</p>
     </Card>
   );
 }

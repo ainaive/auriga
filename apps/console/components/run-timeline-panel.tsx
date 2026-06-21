@@ -16,7 +16,11 @@ export function RunTimelinePanel({ events }: { events: TraceEvent[] }) {
 
   return (
     <div className="space-y-2">
-      <div role="tablist" aria-label="timeline view" className="flex gap-1 text-sm">
+      <div
+        role="tablist"
+        aria-label="timeline view"
+        className="inline-flex gap-1 rounded-lg bg-muted p-1 text-sm"
+      >
         {TABS.map((t) => (
           <button
             key={t.key}
@@ -26,8 +30,8 @@ export function RunTimelinePanel({ events }: { events: TraceEvent[] }) {
             onClick={() => setTab(t.key)}
             className={
               tab === t.key
-                ? "rounded-md bg-secondary px-2.5 py-1 font-medium text-secondary-foreground"
-                : "rounded-md px-2.5 py-1 text-muted-foreground hover:text-foreground"
+                ? "rounded-md bg-card px-2.5 py-1 font-medium text-foreground shadow-sm"
+                : "rounded-md px-2.5 py-1 text-muted-foreground transition-colors hover:text-foreground"
             }
           >
             {t.label}

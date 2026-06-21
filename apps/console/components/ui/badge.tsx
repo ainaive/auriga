@@ -6,12 +6,12 @@ import type { JobState } from "@/lib/types";
 // ring read calmly on both light and dark; `dark:` keys on prefers-color-scheme to
 // match the token theme.
 const TONE: Record<string, string> = {
-  done: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 ring-emerald-500/25",
-  failed: "bg-red-500/15 text-red-700 dark:text-red-400 ring-red-500/25",
-  running: "bg-blue-500/15 text-blue-700 dark:text-blue-400 ring-blue-500/25",
-  planning: "bg-indigo-500/15 text-indigo-700 dark:text-indigo-400 ring-indigo-500/25",
-  verifying: "bg-amber-500/15 text-amber-700 dark:text-amber-400 ring-amber-500/25",
-  paused: "bg-amber-500/15 text-amber-700 dark:text-amber-400 ring-amber-500/25",
+  done: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 ring-emerald-500/30",
+  failed: "bg-red-500/15 text-red-700 dark:text-red-300 ring-red-500/30",
+  running: "bg-blue-500/15 text-blue-700 dark:text-blue-300 ring-blue-500/30",
+  planning: "bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 ring-indigo-500/30",
+  verifying: "bg-amber-500/15 text-amber-700 dark:text-amber-300 ring-amber-500/30",
+  paused: "bg-amber-500/15 text-amber-700 dark:text-amber-300 ring-amber-500/30",
   pending: "bg-muted text-muted-foreground ring-border",
   cancelled: "bg-muted text-muted-foreground ring-border",
 };
@@ -36,18 +36,13 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset",
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset",
         cls,
         className,
       )}
     >
       {dot && (
-        <span
-          className={cn(
-            "size-1.5 rounded-full bg-current",
-            live && "auriga-live-dot",
-          )}
-        />
+        <span className={cn("size-1.5 rounded-full bg-current", live && "auriga-live-dot")} />
       )}
       {children}
     </span>

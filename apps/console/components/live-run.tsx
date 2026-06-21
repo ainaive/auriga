@@ -56,7 +56,7 @@ export function LiveRun({ jobId, seed }: { jobId: string; seed: LiveRunSeed }) {
 function LiveStatus({ state }: { state: LiveRunState }) {
   const tokens = state.usage.input_tokens + state.usage.output_tokens;
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border bg-card px-3 py-2 text-sm">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl border border-border/70 bg-muted/30 px-4 py-2.5 text-sm">
       <Badge tone={state.state} dot>
         {state.state}
       </Badge>
@@ -65,7 +65,7 @@ function LiveStatus({ state }: { state: LiveRunState }) {
       <Stat label="tokens" value={tokens.toLocaleString()} />
       <Stat label="≈ cost" value={`$${state.cost_usd.toFixed(4)}`} />
       {!state.terminal && (
-        <span className="ml-auto inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+        <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-500/30 dark:text-emerald-300">
           <Radio className="size-3.5 auriga-live-dot" />
           live
         </span>
