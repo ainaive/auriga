@@ -9,10 +9,16 @@ export { OpenAIProvider, type OpenAIProviderOptions } from "./openai";
 export {
   providerFor,
   providerKindFor,
+  resolveModel,
   hasCredentials,
   credentialEnvFor,
   type ProviderName,
 } from "./factory";
+export {
+  OPENAI_COMPATIBLE,
+  type CompatibleBackend,
+  type CompatibleKind,
+} from "./openai-compatible";
 export { StubProvider } from "./stub";
 export {
   MODELS,
