@@ -3,8 +3,27 @@
  * ModelProvider seam defined in @auriga/core.
  */
 export { AnthropicProvider, type AnthropicProviderOptions } from "./anthropic";
+export { BedrockProvider, type BedrockProviderOptions } from "./bedrock";
+export { GeminiProvider, type GeminiProviderOptions, sanitizeGeminiSchema } from "./gemini";
+export { OpenAIProvider, type OpenAIProviderOptions } from "./openai";
+export {
+  providerFor,
+  providerKindFor,
+  hasCredentials,
+  credentialEnvFor,
+  type ProviderName,
+} from "./factory";
 export { StubProvider } from "./stub";
-export { MODELS, type ModelHandle } from "./models";
+export {
+  MODELS,
+  type ModelHandle,
+  OPENAI_MODELS,
+  type OpenAIModelHandle,
+  GEMINI_MODELS,
+  type GeminiModelHandle,
+  BEDROCK_MODELS,
+  type BedrockModelHandle,
+} from "./models";
 export {
   staticRouter,
   reasoningSandwich,

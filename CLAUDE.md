@@ -62,6 +62,11 @@ Codenames: **Currus** = harness runtime (`packages/currus`), **Habenae** = contr
   real driver + a test/dev driver — see the table in [`docs/architecture.md`](docs/architecture.md).
 - **There is no `apps/worker`.** The `Worker` is a class in [`@auriga/habenae`](packages/habenae); the only
   apps are `apps/api` and `apps/console`.
+- **Model backend is chosen by the model-id prefix** via `providerFor(modelId)` in
+  [`@auriga/provider`](packages/provider): `claude-*` → Anthropic (`ANTHROPIC_API_KEY`), `gpt-*`/`o*` →
+  OpenAI (`OPENAI_API_KEY`), `gemini-*` → Gemini (`GEMINI_API_KEY`/`GOOGLE_API_KEY`), vendor-prefixed
+  ids like `us.anthropic.*` → Bedrock (AWS credential chain + `AWS_REGION`). Call sites gate on
+  `hasCredentials(kind)` before constructing.
 
 ## More
 

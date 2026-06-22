@@ -31,7 +31,7 @@ agent-orchestration framework owns the control flow.**
 | Package | Responsibility |
 |---|---|
 | [`@auriga/core`](../packages/core) | Shared types & Zod schemas — job model, lifecycle, skill contract, provider seam, trace model. Schemas are the source of truth; types are inferred. |
-| [`@auriga/provider`](../packages/provider) | Model-provider seam + the Anthropic implementation, a deterministic stub, and model routing (the "reasoning sandwich"). |
+| [`@auriga/provider`](../packages/provider) | Model-provider seam + the Anthropic, OpenAI, Gemini, and Bedrock implementations, a deterministic stub, a `providerFor(modelId)` factory that selects the backend from the model-id prefix, and model routing (the "reasoning sandwich"). |
 | [`@auriga/sandbox`](../packages/sandbox) | The `Sandbox` abstraction + a Docker driver (real isolation) and a Local driver (dev fallback). |
 | [`@auriga/currus`](../packages/currus) | The harness runtime: the PEV loop, tool dispatch (allowlisted), context compaction, the verification gate, and the skill resolver. |
 | [`@auriga/skill-registry`](../packages/skill-registry) | Interim content-addressed + ed25519-signed skill artifact store and marketplace ranking. |
@@ -161,7 +161,7 @@ the engine is testable hermetically and adaptable in production. **Self-built** 
 | `JobStore` | [`habenae/src/types.ts`](../packages/habenae/src/types.ts) | `InMemoryJobStore`, `FileJobStore`, `PostgresJobStore` | glued (Postgres) |
 | `Queue` | [`habenae/src/types.ts`](../packages/habenae/src/types.ts) | `InProcessQueue`, `GraphileQueue` (graphile-worker) | glued |
 | `Sandbox` / `SandboxDriver` | [`sandbox/src/types.ts`](../packages/sandbox/src/types.ts) | `LocalSandboxDriver`, `DockerSandboxDriver` | glued (never self-built isolation) |
-| `ModelProvider` | [`core/src/provider/types.ts`](../packages/core/src/provider/types.ts) | `AnthropicProvider`, `StubProvider`, `ReplayProvider` | glued (SDK) |
+| `ModelProvider` | [`core/src/provider/types.ts`](../packages/core/src/provider/types.ts) | `AnthropicProvider`, `OpenAIProvider`, `GeminiProvider`, `BedrockProvider`, `StubProvider`, `ReplayProvider` (chosen per model id by `providerFor`) | glued (SDK) |
 | `SkillRegistry` | [`core/src/skill/types.ts`](../packages/core/src/skill/types.ts) | `LocalSkillRegistry` (`openDevRegistry`) | self-built (interim) |
 | `AuditLog` | [`habenae/src/audit.ts`](../packages/habenae/src/audit.ts) | `InMemoryAuditLog`, `FileAuditLog`, `PostgresAuditLog` | self-built |
 | `Policy` | [`habenae/src/governance.ts`](../packages/habenae/src/governance.ts) | `InMemoryPolicy`, `StoreBackedPolicy` | self-built |
