@@ -4,7 +4,16 @@
  */
 export { AnthropicProvider, type AnthropicProviderOptions } from "./anthropic";
 export { StubProvider } from "./stub";
-export { MODELS, type ModelHandle } from "./models";
+export {
+  MODELS,
+  type ModelHandle,
+  OPENAI_MODELS,
+  type OpenAIModelHandle,
+  GEMINI_MODELS,
+  type GeminiModelHandle,
+  BEDROCK_MODELS,
+  type BedrockModelHandle,
+} from "./models";
 export {
   staticRouter,
   reasoningSandwich,
