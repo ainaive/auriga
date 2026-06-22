@@ -18,7 +18,7 @@ import {
   credentialEnvFor,
   hasCredentials,
   providerFor,
-  providerKindFor,
+  resolveModel,
 } from "@auriga/provider";
 import { selectDriver, type SandboxDriver } from "@auriga/sandbox";
 import { openDevRegistry, searchSkills } from "@auriga/skill-registry";
@@ -85,18 +85,30 @@ function selectCliDriver(): Promise<SandboxDriver> {
 
 /** Run a job that already exists in the store, printing progress + result. */
 async function runWorker(store: FileJobStore, id: string, model: string): Promise<void> {
-  const kind = providerKindFor(model);
-  if (!hasCredentials(kind)) {
-    console.error(`${credentialEnvFor(kind)} is required to run ${model} (${kind}).`);
+  let resolved: ReturnType<typeof resolveModel>;
+  try {
+    resolved = resolveModel(model);
+  } catch {
+    console.error(`unknown model "${model}": no provider matches its prefix`);
+    process.exitCode = 1;
+    return;
+  }
+  if (!hasCredentials(resolved.kind)) {
+    console.error(
+      `${credentialEnvFor(resolved.kind)} is required to run ${resolved.model} (${resolved.kind}).`,
+    );
     process.exitCode = 1;
     return;
   }
   const driver = await selectCliDriver();
-  console.log(`running ${id} · model ${model} · sandbox ${driver.name}`);
+  console.log(
+    `running ${id} · model ${resolved.model} · backend ${resolved.kind} · sandbox ${driver.name}`,
+  );
   const worker = new Worker({
     store,
+    // Resolve the backend from the raw id (honors a `vendor/` override); run the bare model.
     provider: providerFor(model),
-    model,
+    model: resolved.model,
     sandboxDriver: driver,
     audit: auditLog(),
     onEvent: (e) => {
@@ -107,7 +119,9 @@ async function runWorker(store: FileJobStore, id: string, model: string): Promis
   });
   const res = await worker.run(id);
   console.log(`\n${id}: ${res.state} — ${res.reason}`);
-  console.log(`attempts=${res.attempts} steps=${res.steps} · ${formatUsage(model, res.usage)}`);
+  console.log(
+    `attempts=${res.attempts} steps=${res.steps} · ${formatUsage(resolved.model, res.usage)}`,
+  );
   if (res.state === "paused") {
     console.log(`paused for approval — run: auriga approve ${id} && auriga run ${id}`);
   }
@@ -167,17 +181,27 @@ async function schedule(store: FileJobStore, args: string[]): Promise<void> {
     console.log("(no pending jobs)");
     return;
   }
-  const kind = providerKindFor(MODEL);
-  if (!hasCredentials(kind)) {
-    console.error(`${credentialEnvFor(kind)} is required to run jobs (${MODEL} · ${kind}).`);
+  let resolved: ReturnType<typeof resolveModel>;
+  try {
+    resolved = resolveModel(MODEL);
+  } catch {
+    console.error(`unknown model "${MODEL}": no provider matches its prefix`);
+    process.exitCode = 1;
+    return;
+  }
+  if (!hasCredentials(resolved.kind)) {
+    console.error(
+      `${credentialEnvFor(resolved.kind)} is required to run jobs (${resolved.model} · ${resolved.kind}).`,
+    );
     process.exitCode = 1;
     return;
   }
   const driver = await selectCliDriver();
   const worker = new Worker({
     store,
+    // Resolve the backend from the raw id (honors a `vendor/` override); run the bare model.
     provider: providerFor(MODEL),
-    model: MODEL,
+    model: resolved.model,
     sandboxDriver: driver,
   });
   const maxRetries = intArg(args, "--max-retries", 0);
