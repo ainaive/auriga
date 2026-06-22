@@ -6,6 +6,13 @@ export { AnthropicProvider, type AnthropicProviderOptions } from "./anthropic";
 export { BedrockProvider, type BedrockProviderOptions } from "./bedrock";
 export { GeminiProvider, type GeminiProviderOptions, sanitizeGeminiSchema } from "./gemini";
 export { OpenAIProvider, type OpenAIProviderOptions } from "./openai";
+export {
+  providerFor,
+  providerKindFor,
+  hasCredentials,
+  credentialEnvFor,
+  type ProviderName,
+} from "./factory";
 export { StubProvider } from "./stub";
 export {
   MODELS,
