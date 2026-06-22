@@ -104,9 +104,12 @@ The complete set across all surfaces (grepped from `process.env.*`):
 
 | Variable | Surface | Default | Purpose |
 |---|---|---|---|
-| `ANTHROPIC_API_KEY` | CLI, worker | — | Live model auth (required to run jobs) |
+| `ANTHROPIC_API_KEY` | CLI, worker | — | Anthropic auth — required to run a `claude-*` job |
+| `OPENAI_API_KEY` | CLI, worker | — | OpenAI auth — required to run a `gpt-*` / `o*` job |
+| `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) | CLI, worker | — | Gemini auth — required to run a `gemini-*` job |
+| `AWS_REGION` | CLI, worker | `us-east-1` | Bedrock region; credentials come from the standard AWS chain (`AWS_ACCESS_KEY_ID`/`AWS_PROFILE`/role) |
 | `AURIGA_HOME` | CLI, API | `./.auriga/jobs` | Root of the file-backed store + audit log |
-| `AURIGA_MODEL` | CLI | `claude-sonnet-4-6` | Default model handle for new runs |
+| `AURIGA_MODEL` | CLI | `claude-sonnet-4-6` | Default model id for new runs; its prefix selects the provider backend |
 | `AURIGA_SKILLS` | CLI (`skills`) | — | Path to a dev skill registry |
 | `AURIGA_REQUIRE_DOCKER` | CLI | unset | `1` requires an isolated Docker sandbox (no Local fallback) |
 | `USER` | CLI | `cli` | Recorded as the audit actor for `create` / `approve` |
