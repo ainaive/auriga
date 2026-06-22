@@ -11,9 +11,9 @@ export interface CompatibleBackend {
   /** Optional env var that overrides `baseURL` (e.g. region or self-hosted proxy). */
   baseURLEnv?: string;
   /** Credential env vars, in priority order — the first one present is used. */
-  apiKeyEnv: string[];
+  apiKeyEnv: readonly string[];
   /** Model-id prefixes routed to this backend. */
-  prefixes: RegExp[];
+  prefixes: readonly RegExp[];
   /** Output-token-limit field this gateway understands. */
   maxTokensField: "max_completion_tokens" | "max_tokens";
 }
