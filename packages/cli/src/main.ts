@@ -422,10 +422,11 @@ usage:
   auriga skills [-q query]    browse the skill marketplace (set AURIGA_SKILLS)
   auriga eval <suite-dir>     replay a suite of recorded traces and score them
 
-env: a provider key matching AURIGA_MODEL (ANTHROPIC_API_KEY · OPENAI_API_KEY ·
-     GEMINI_API_KEY/GOOGLE_API_KEY · AWS credential chain + AWS_REGION for Bedrock),
-     AURIGA_MODEL (model id selects the backend), AURIGA_HOME, AURIGA_SKILLS (registry dir),
-     AURIGA_REQUIRE_DOCKER=1 (require an isolated sandbox)`);
+env: a provider key matching AURIGA_MODEL — ANTHROPIC_API_KEY · OPENAI_API_KEY ·
+     GEMINI_API_KEY/GOOGLE_API_KEY · AWS chain + AWS_REGION (Bedrock) · DEEPSEEK_API_KEY ·
+     DASHSCOPE_API_KEY (Bailian/Qwen) · MOONSHOT_API_KEY · ZHIPU_API_KEY.
+     AURIGA_MODEL: the id's prefix selects the backend; prefix with vendor/ to force it
+     (e.g. bailian/deepseek-r1). Also AURIGA_HOME, AURIGA_SKILLS, AURIGA_REQUIRE_DOCKER=1.`);
 }
 
 await main().catch((err) => {
