@@ -15,13 +15,13 @@ test("prices non-Anthropic provider models", () => {
   expect(
     estimateCostUsd("gpt-4o", { input_tokens: 1_000_000, output_tokens: 1_000_000 }),
   ).toBeCloseTo(12.5, 5);
-  // Bedrock cross-region inference-profile id is priced under its full id.
+  // Bedrock cross-region inference-profile id is priced under its full id ($6/M in).
   expect(
     estimateCostUsd("us.anthropic.claude-3-5-sonnet-20241022-v2:0", {
       input_tokens: 1_000_000,
       output_tokens: 0,
     }),
-  ).toBeCloseTo(3, 5);
+  ).toBeCloseTo(6, 5);
 });
 
 test("unknown model has unknown (NaN) cost, not zero", () => {

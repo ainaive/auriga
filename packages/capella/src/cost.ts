@@ -19,15 +19,15 @@ export const PRICING: Record<string, ModelPricing> = {
   // OpenAI — confirm against platform.openai.com/pricing
   "gpt-4o": { inputPerMTok: 2.5, outputPerMTok: 10 },
   "gpt-4o-mini": { inputPerMTok: 0.15, outputPerMTok: 0.6 },
-  o3: { inputPerMTok: 2, outputPerMTok: 8 },
+  o3: { inputPerMTok: 10, outputPerMTok: 40 },
   // Gemini — confirm against ai.google.dev/pricing
   "gemini-2.5-pro": { inputPerMTok: 1.25, outputPerMTok: 10 },
   "gemini-2.5-flash": { inputPerMTok: 0.3, outputPerMTok: 2.5 },
   // Bedrock (Anthropic on Bedrock) — confirm against AWS Bedrock pricing. The
   // Converse modelId includes the cross-region prefix, so list both the bare and
   // us.-prefixed inference-profile ids (estimateCostUsd does an exact-key lookup).
-  "anthropic.claude-3-5-sonnet-20241022-v2:0": { inputPerMTok: 3, outputPerMTok: 15 },
-  "us.anthropic.claude-3-5-sonnet-20241022-v2:0": { inputPerMTok: 3, outputPerMTok: 15 },
+  "anthropic.claude-3-5-sonnet-20241022-v2:0": { inputPerMTok: 6, outputPerMTok: 30 },
+  "us.anthropic.claude-3-5-sonnet-20241022-v2:0": { inputPerMTok: 6, outputPerMTok: 30 },
   "anthropic.claude-3-5-haiku-20241022-v1:0": { inputPerMTok: 0.8, outputPerMTok: 4 },
   "us.anthropic.claude-3-5-haiku-20241022-v1:0": { inputPerMTok: 0.8, outputPerMTok: 4 },
 };
