@@ -15,7 +15,11 @@ type NativeKind = "anthropic" | "gemini" | "bedrock";
 export type ProviderName = NativeKind | CompatibleKind;
 
 function isProviderName(s: string): s is ProviderName {
-  return s === "anthropic" || s === "gemini" || s === "bedrock" || s in OPENAI_COMPATIBLE;
+  // `Object.hasOwn`, not `in` — `in` accepts inherited keys like "toString"/"constructor",
+  // which would pass the guard and then crash construct() on a non-entry.
+  return (
+    s === "anthropic" || s === "gemini" || s === "bedrock" || Object.hasOwn(OPENAI_COMPATIBLE, s)
+  );
 }
 
 /** Infer the backend from a model id by its prefix (no `vendor/` override handling). */
@@ -43,7 +47,15 @@ export function resolveModel(modelId: string): { kind: ProviderName; model: stri
   const slash = modelId.indexOf("/");
   if (slash > 0) {
     const prefix = modelId.slice(0, slash);
-    if (isProviderName(prefix)) return { kind: prefix, model: modelId.slice(slash + 1) };
+    if (isProviderName(prefix)) {
+      const model = modelId.slice(slash + 1);
+      if (model.length === 0) {
+        throw new ValidationError(
+          `invalid model id "${modelId}": missing model after "${prefix}/"`,
+        );
+      }
+      return { kind: prefix, model };
+    }
   }
   return { kind: inferKind(modelId), model: modelId };
 }

@@ -67,6 +67,11 @@ test("resolveModel honors a vendor/model override and strips the prefix", () => 
   expect(resolveModel("deepseek-chat")).toEqual({ kind: "deepseek", model: "deepseek-chat" });
   // An unknown prefix before "/" is NOT treated as an override.
   expect(() => resolveModel("mystery/thing")).toThrow(ValidationError);
+  // Inherited object keys must not be accepted as a backend (own-keys guard).
+  expect(() => resolveModel("toString/x")).toThrow(ValidationError);
+  expect(() => resolveModel("constructor/x")).toThrow(ValidationError);
+  // An override with no model after the slash is rejected, not passed through empty.
+  expect(() => resolveModel("openai/")).toThrow(ValidationError);
 });
 
 test("providerFor caches one instance per backend", () => {
