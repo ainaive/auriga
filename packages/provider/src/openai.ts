@@ -49,7 +49,10 @@ export class OpenAIProvider implements ModelProvider {
     this.client =
       opts.client ??
       new OpenAI({
-        apiKey: opts.apiKey ?? process.env.OPENAI_API_KEY,
+        // Only the canonical OpenAI endpoint borrows OPENAI_API_KEY — a custom gateway
+        // (DeepSeek, Bailian, …) must bring its own key. Pass "" (not undefined) for a
+        // keyless gateway so the SDK can't fall back to OPENAI_API_KEY from the env.
+        apiKey: opts.apiKey ?? (opts.baseURL === undefined ? process.env.OPENAI_API_KEY : ""),
         ...(opts.baseURL !== undefined ? { baseURL: opts.baseURL } : {}),
       });
   }

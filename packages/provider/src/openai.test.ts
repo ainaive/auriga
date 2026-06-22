@@ -171,6 +171,26 @@ test("infers tool_use even when a gateway reports finish_reason 'stop' with tool
   expect(toolUses(res.content)[0]?.id).toBe("call_1");
 });
 
+test("a custom baseURL never inherits OPENAI_API_KEY", () => {
+  const keyOf = (p: OpenAIProvider) =>
+    (p as unknown as { client: { apiKey?: string } }).client.apiKey;
+  const saved = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "sk-openai";
+  try {
+    // A custom gateway uses only its own explicit key…
+    expect(
+      keyOf(new OpenAIProvider({ baseURL: "https://api.deepseek.com", apiKey: "ds-key" })),
+    ).toBe("ds-key");
+    // …and with no key it fails closed rather than borrowing OPENAI_API_KEY (no leak to a third party).
+    expect(() => new OpenAIProvider({ baseURL: "https://api.deepseek.com" })).toThrow();
+    // The canonical endpoint still reads OPENAI_API_KEY from the environment.
+    expect(keyOf(new OpenAIProvider())).toBe("sk-openai");
+  } finally {
+    if (saved === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = saved;
+  }
+});
+
 test("the mapped response satisfies the completion contract", async () => {
   const { client } = fakeClient(completion({}));
   await runCompletionContract(new OpenAIProvider({ client }), OPENAI_MODELS.gpt4o);
