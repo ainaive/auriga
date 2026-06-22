@@ -3,6 +3,7 @@
  * ModelProvider seam defined in @auriga/core.
  */
 export { AnthropicProvider, type AnthropicProviderOptions } from "./anthropic";
+export { BedrockProvider, type BedrockProviderOptions } from "./bedrock";
 export { StubProvider } from "./stub";
 export {
   MODELS,
