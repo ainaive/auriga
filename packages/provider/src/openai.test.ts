@@ -129,6 +129,48 @@ test("builds request shapes: stringified args, tool-result message, and id conti
   expect(lastParams()?.max_completion_tokens).toBe(16);
 });
 
+test("compatible mode: name override and max_tokens field", async () => {
+  const { client, lastParams } = fakeClient(completion({}));
+  const provider = new OpenAIProvider({ client, name: "deepseek", maxTokensField: "max_tokens" });
+  expect(provider.name).toBe("deepseek");
+  await provider.complete({
+    model: "deepseek-chat",
+    max_tokens: 16,
+    messages: [userText("ping")],
+  });
+  // Compatible gateways take `max_tokens`, not `max_completion_tokens`.
+  expect(lastParams()?.max_tokens).toBe(16);
+  expect(lastParams()?.max_completion_tokens).toBeUndefined();
+});
+
+test("infers tool_use even when a gateway reports finish_reason 'stop' with tool_calls", async () => {
+  const { client } = fakeClient(
+    completion({
+      choice: {
+        finish_reason: "stop",
+        message: {
+          role: "assistant",
+          content: null,
+          refusal: null,
+          tool_calls: [
+            { id: "call_1", type: "function", function: { name: "bash", arguments: "{}" } },
+          ],
+        },
+      },
+    }),
+  );
+  const provider = new OpenAIProvider({ client });
+  const res = await provider.complete({
+    model: OPENAI_MODELS.gpt4o,
+    max_tokens: 16,
+    messages: [userText("go")],
+    tools: [{ name: "bash", description: "run a shell command", input_schema: { type: "object" } }],
+  });
+  validateModelResponse(res);
+  expect(res.stop_reason).toBe("tool_use");
+  expect(toolUses(res.content)[0]?.id).toBe("call_1");
+});
+
 test("the mapped response satisfies the completion contract", async () => {
   const { client } = fakeClient(completion({}));
   await runCompletionContract(new OpenAIProvider({ client }), OPENAI_MODELS.gpt4o);

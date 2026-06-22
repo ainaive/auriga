@@ -17,8 +17,16 @@ import type {
 
 export interface OpenAIProviderOptions {
   apiKey?: string;
-  /** Override the base URL (e.g. for Azure OpenAI or a compatible gateway). */
+  /** Override the base URL (e.g. for Azure OpenAI or an OpenAI-compatible gateway). */
   baseURL?: string;
+  /** Provider name for traces/cost (e.g. "deepseek"). Defaults to "openai". */
+  name?: string;
+  /**
+   * Which field carries the output-token limit. OpenAI's o-series rejects
+   * `max_tokens`, so the default is `max_completion_tokens`; most OpenAI-compatible
+   * gateways only implement the older `max_tokens`.
+   */
+  maxTokensField?: "max_completion_tokens" | "max_tokens";
   /** Inject a pre-built client (e.g. for tests). */
   client?: OpenAI;
 }
@@ -27,13 +35,17 @@ export interface OpenAIProviderOptions {
  * OpenAI-backed ModelProvider over the Chat Completions API. Maps the
  * provider-agnostic, block-structured request/response types to and from
  * OpenAI's role-flat message format. This is the only place OpenAI-specific
- * shapes appear — the loop is untouched.
+ * shapes appear — the loop is untouched. The same adapter backs OpenAI-compatible
+ * gateways (DeepSeek, Bailian, …) via `baseURL` + `name` + `maxTokensField`.
  */
 export class OpenAIProvider implements ModelProvider {
-  readonly name = "openai";
+  readonly name: string;
   private readonly client: OpenAI;
+  private readonly maxTokensField: "max_completion_tokens" | "max_tokens";
 
   constructor(opts: OpenAIProviderOptions = {}) {
+    this.name = opts.name ?? "openai";
+    this.maxTokensField = opts.maxTokensField ?? "max_completion_tokens";
     this.client =
       opts.client ??
       new OpenAI({
@@ -45,8 +57,10 @@ export class OpenAIProvider implements ModelProvider {
   async complete(req: GenerateRequest): Promise<ModelResponse> {
     const res = await this.client.chat.completions.create({
       model: req.model,
-      // o1/o3 reject `max_tokens`; `max_completion_tokens` is the modern field.
-      max_completion_tokens: req.max_tokens,
+      // Compatible gateways only know `max_tokens`; OpenAI's o-series needs `max_completion_tokens`.
+      ...(this.maxTokensField === "max_tokens"
+        ? { max_tokens: req.max_tokens }
+        : { max_completion_tokens: req.max_tokens }),
       messages: toOpenAIMessages(req),
       ...(req.tools ? { tools: req.tools.map(toOpenAITool) } : {}),
       ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
@@ -160,13 +174,14 @@ function mapStopReason(
   reason: ChatCompletion.Choice["finish_reason"] | undefined,
   hasToolUse: boolean,
 ): StopReason {
+  // Some compatible gateways report finish_reason "stop" while still returning
+  // tool_calls — infer from the blocks so the loop never drops the calls.
+  if (hasToolUse) return "tool_use";
   switch (reason) {
-    case "tool_calls":
-      return hasToolUse ? "tool_use" : "end_turn";
     case "length":
       return "max_tokens";
     default:
-      // stop, content_filter, function_call
+      // stop, content_filter, function_call, tool_calls (without a usable call)
       return "end_turn";
   }
 }
