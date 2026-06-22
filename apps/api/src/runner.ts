@@ -1,4 +1,10 @@
-import { MODELS, hasCredentials, providerFor, providerKindFor } from "@auriga/provider";
+import {
+  MODELS,
+  type ProviderName,
+  hasCredentials,
+  providerFor,
+  providerKindFor,
+} from "@auriga/provider";
 import { selectDriver, type SandboxDriver } from "@auriga/sandbox";
 import { Worker, type AuditLog, type EventBus, type JobStore } from "@auriga/habenae";
 
@@ -17,8 +23,16 @@ export function createRunner(
   bus?: EventBus,
 ): { run: (jobId: string) => void } | undefined {
   const model = process.env.AURIGA_MODEL ?? MODELS.sonnet;
-  // Pick the backend from the model-id prefix and gate on its credentials.
-  if (!hasCredentials(providerKindFor(model))) return undefined;
+  // Pick the backend from the model-id prefix and gate on its credentials. A bad
+  // AURIGA_MODEL must not crash runner creation — let the route answer 503 instead.
+  let kind: ProviderName;
+  try {
+    kind = providerKindFor(model);
+  } catch {
+    console.error(`[auriga] invalid AURIGA_MODEL "${model}": no provider matches its prefix`);
+    return undefined;
+  }
+  if (!hasCredentials(kind)) return undefined;
   const inFlight = new Set<string>();
   // Resolve the sandbox driver once, lazily (Local fallback unless AURIGA_REQUIRE_DOCKER=1).
   let driverP: Promise<SandboxDriver> | undefined;
