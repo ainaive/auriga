@@ -4,6 +4,7 @@
  */
 export { AnthropicProvider, type AnthropicProviderOptions } from "./anthropic";
 export { BedrockProvider, type BedrockProviderOptions } from "./bedrock";
+export { OpenAIProvider, type OpenAIProviderOptions } from "./openai";
 export { StubProvider } from "./stub";
 export {
   MODELS,
