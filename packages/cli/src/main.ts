@@ -13,7 +13,13 @@ import {
   Worker,
   type JobRecord,
 } from "@auriga/habenae";
-import { AnthropicProvider, MODELS } from "@auriga/provider";
+import {
+  MODELS,
+  credentialEnvFor,
+  hasCredentials,
+  providerFor,
+  providerKindFor,
+} from "@auriga/provider";
 import { selectDriver, type SandboxDriver } from "@auriga/sandbox";
 import { openDevRegistry, searchSkills } from "@auriga/skill-registry";
 
@@ -79,8 +85,9 @@ function selectCliDriver(): Promise<SandboxDriver> {
 
 /** Run a job that already exists in the store, printing progress + result. */
 async function runWorker(store: FileJobStore, id: string, model: string): Promise<void> {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.error("ANTHROPIC_API_KEY is required to run a job.");
+  const kind = providerKindFor(model);
+  if (!hasCredentials(kind)) {
+    console.error(`${credentialEnvFor(kind)} is required to run ${model} (${kind}).`);
     process.exitCode = 1;
     return;
   }
@@ -88,7 +95,7 @@ async function runWorker(store: FileJobStore, id: string, model: string): Promis
   console.log(`running ${id} · model ${model} · sandbox ${driver.name}`);
   const worker = new Worker({
     store,
-    provider: new AnthropicProvider(),
+    provider: providerFor(model),
     model,
     sandboxDriver: driver,
     audit: auditLog(),
@@ -160,15 +167,16 @@ async function schedule(store: FileJobStore, args: string[]): Promise<void> {
     console.log("(no pending jobs)");
     return;
   }
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.error("ANTHROPIC_API_KEY is required to run jobs.");
+  const kind = providerKindFor(MODEL);
+  if (!hasCredentials(kind)) {
+    console.error(`${credentialEnvFor(kind)} is required to run jobs (${MODEL} · ${kind}).`);
     process.exitCode = 1;
     return;
   }
   const driver = await selectCliDriver();
   const worker = new Worker({
     store,
-    provider: new AnthropicProvider(),
+    provider: providerFor(MODEL),
     model: MODEL,
     sandboxDriver: driver,
   });
@@ -390,7 +398,8 @@ usage:
   auriga skills [-q query]    browse the skill marketplace (set AURIGA_SKILLS)
   auriga eval <suite-dir>     replay a suite of recorded traces and score them
 
-env: ANTHROPIC_API_KEY (required for submit/run/schedule), AURIGA_MODEL, AURIGA_HOME,
+env: a provider key matching AURIGA_MODEL (ANTHROPIC_API_KEY · OPENAI_API_KEY · GEMINI_API_KEY ·
+     AWS creds for Bedrock), AURIGA_MODEL (model id selects the backend), AURIGA_HOME,
      AURIGA_SKILLS (registry dir), AURIGA_REQUIRE_DOCKER=1 (require an isolated sandbox)`);
 }
 
