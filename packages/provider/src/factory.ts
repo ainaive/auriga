@@ -66,10 +66,12 @@ export function hasCredentials(kind: ProviderName): boolean {
     case "gemini":
       return Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY);
     case "bedrock":
-      // The AWS SDK resolves credentials from a chain; treat any common signal as present.
-      return Boolean(
-        process.env.AWS_ACCESS_KEY_ID || process.env.AWS_PROFILE || process.env.AWS_ROLE_ARN,
-      );
+      // The AWS SDK resolves credentials lazily from its full default chain (env vars,
+      // SSO, web identity, shared config, ECS/EKS container creds, EC2 IMDS) at request
+      // time, and BedrockRuntimeClient construction never throws. We can't preflight that
+      // synchronously without rejecting valid setups (e.g. an EC2/EKS instance role), so
+      // defer to the SDK — a real auth failure surfaces on the first Converse call.
+      return true;
   }
 }
 

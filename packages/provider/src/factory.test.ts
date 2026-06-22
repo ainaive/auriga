@@ -3,25 +3,18 @@ import { ValidationError, type ModelProvider } from "@auriga/core";
 import { credentialEnvFor, hasCredentials, providerFor, providerKindFor } from "./factory";
 import type { ProviderName } from "./factory";
 
-const ENV_KEYS = [
-  "ANTHROPIC_API_KEY",
-  "OPENAI_API_KEY",
-  "GEMINI_API_KEY",
-  "GOOGLE_API_KEY",
-  "AWS_ACCESS_KEY_ID",
-  "AWS_PROFILE",
-  "AWS_ROLE_ARN",
-] as const;
 const savedEnv: Record<string, string | undefined> = {};
 afterEach(() => {
-  for (const k of ENV_KEYS) {
+  // Restore only the keys a test actually touched, back to their original values.
+  for (const k of Object.keys(savedEnv)) {
     if (savedEnv[k] === undefined) delete process.env[k];
     else process.env[k] = savedEnv[k];
     delete savedEnv[k];
   }
 });
 function setEnv(key: string, value: string | undefined): void {
-  savedEnv[key] = process.env[key];
+  // Snapshot the original once, so repeated mutations of the same key don't clobber it.
+  if (!(key in savedEnv)) savedEnv[key] = process.env[key];
   if (value === undefined) delete process.env[key];
   else process.env[key] = value;
 }
@@ -75,8 +68,11 @@ test("hasCredentials reflects the environment", () => {
   setEnv("GOOGLE_API_KEY", "g-test");
   expect(hasCredentials("gemini")).toBe(true); // GOOGLE_API_KEY is an accepted fallback
 
+  // Bedrock defers to the AWS credential chain (resolved lazily by the SDK), so it's
+  // always reported present even with no AWS env vars set.
   setEnv("AWS_ACCESS_KEY_ID", undefined);
-  setEnv("AWS_PROFILE", "default");
+  setEnv("AWS_PROFILE", undefined);
+  setEnv("AWS_ROLE_ARN", undefined);
   expect(hasCredentials("bedrock")).toBe(true);
 });
 
