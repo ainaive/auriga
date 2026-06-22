@@ -34,3 +34,37 @@ export const BEDROCK_MODELS = {
 } as const;
 
 export type BedrockModelHandle = keyof typeof BEDROCK_MODELS;
+
+/** DeepSeek model ids (OpenAI-compatible; routed via the `deepseek-` prefix). */
+export const DEEPSEEK_MODELS = {
+  chat: "deepseek-chat",
+  reasoner: "deepseek-reasoner",
+} as const;
+
+export type DeepSeekModelHandle = keyof typeof DEEPSEEK_MODELS;
+
+/** Aliyun Bailian / Qwen model ids (OpenAI-compatible; routed via the `qwen` prefix). */
+export const QWEN_MODELS = {
+  plus: "qwen-plus",
+  max: "qwen-max",
+  turbo: "qwen-turbo",
+} as const;
+
+export type QwenModelHandle = keyof typeof QWEN_MODELS;
+
+/** Moonshot (Kimi) model ids (OpenAI-compatible; routed via the `kimi`/`moonshot` prefix). */
+export const MOONSHOT_MODELS = {
+  k2: "kimi-k2-0905-preview",
+  v1_8k: "moonshot-v1-8k",
+  v1_32k: "moonshot-v1-32k",
+} as const;
+
+export type MoonshotModelHandle = keyof typeof MOONSHOT_MODELS;
+
+/** Zhipu GLM model ids (OpenAI-compatible; routed via the `glm-` prefix). */
+export const ZHIPU_MODELS = {
+  glm4: "glm-4",
+  glm4Plus: "glm-4-plus",
+} as const;
+
+export type ZhipuModelHandle = keyof typeof ZHIPU_MODELS;
