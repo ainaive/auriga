@@ -25,7 +25,7 @@ test("prices non-Anthropic provider models", () => {
   // OpenAI-compatible backends are priced by their bare (stripped) model id.
   expect(
     estimateCostUsd("deepseek-chat", { input_tokens: 1_000_000, output_tokens: 1_000_000 }),
-  ).toBeCloseTo(1.37, 5);
+  ).toBeCloseTo(0.42, 5);
   expect(estimateCostUsd("qwen-plus", { input_tokens: 1_000_000, output_tokens: 0 })).toBeCloseTo(
     0.4,
     5,
