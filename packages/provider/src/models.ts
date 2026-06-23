@@ -34,3 +34,41 @@ export const BEDROCK_MODELS = {
 } as const;
 
 export type BedrockModelHandle = keyof typeof BEDROCK_MODELS;
+
+/**
+ * DeepSeek model ids (OpenAI-compatible; routed via the `deepseek-` prefix).
+ * `chat`/`reasoner` are aliases for deepseek-v4-flash and deprecate 2026-07-24.
+ */
+export const DEEPSEEK_MODELS = {
+  chat: "deepseek-chat",
+  reasoner: "deepseek-reasoner",
+  v4Flash: "deepseek-v4-flash",
+  v4Pro: "deepseek-v4-pro",
+} as const;
+
+export type DeepSeekModelHandle = keyof typeof DEEPSEEK_MODELS;
+
+/** Aliyun Bailian / Qwen model ids (OpenAI-compatible; routed via the `qwen` prefix). */
+export const QWEN_MODELS = {
+  plus: "qwen-plus",
+  max: "qwen-max",
+  turbo: "qwen-turbo",
+} as const;
+
+export type QwenModelHandle = keyof typeof QWEN_MODELS;
+
+/** Moonshot (Kimi) model ids (OpenAI-compatible; routed via the `kimi`/`moonshot` prefix). */
+export const MOONSHOT_MODELS = {
+  k2_5: "kimi-k2.5",
+  k2_6: "kimi-k2.6",
+} as const;
+
+export type MoonshotModelHandle = keyof typeof MOONSHOT_MODELS;
+
+/** Zhipu GLM model ids (OpenAI-compatible; routed via the `glm-` prefix). */
+export const ZHIPU_MODELS = {
+  glm47: "glm-4.7",
+  glm47FlashX: "glm-4.7-flashx",
+} as const;
+
+export type ZhipuModelHandle = keyof typeof ZHIPU_MODELS;

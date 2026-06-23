@@ -9,10 +9,16 @@ export { OpenAIProvider, type OpenAIProviderOptions } from "./openai";
 export {
   providerFor,
   providerKindFor,
+  resolveModel,
   hasCredentials,
   credentialEnvFor,
   type ProviderName,
 } from "./factory";
+export {
+  OPENAI_COMPATIBLE,
+  type CompatibleBackend,
+  type CompatibleKind,
+} from "./openai-compatible";
 export { StubProvider } from "./stub";
 export {
   MODELS,
@@ -23,6 +29,14 @@ export {
   type GeminiModelHandle,
   BEDROCK_MODELS,
   type BedrockModelHandle,
+  DEEPSEEK_MODELS,
+  type DeepSeekModelHandle,
+  QWEN_MODELS,
+  type QwenModelHandle,
+  MOONSHOT_MODELS,
+  type MoonshotModelHandle,
+  ZHIPU_MODELS,
+  type ZhipuModelHandle,
 } from "./models";
 export {
   staticRouter,

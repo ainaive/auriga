@@ -1,6 +1,12 @@
 import { test, expect, afterEach } from "bun:test";
 import { ValidationError, type ModelProvider } from "@auriga/core";
-import { credentialEnvFor, hasCredentials, providerFor, providerKindFor } from "./factory";
+import {
+  credentialEnvFor,
+  hasCredentials,
+  providerFor,
+  providerKindFor,
+  resolveModel,
+} from "./factory";
 import type { ProviderName } from "./factory";
 
 const savedEnv: Record<string, string | undefined> = {};
@@ -31,6 +37,14 @@ test("providerKindFor infers the backend from the model-id prefix", () => {
     ["anthropic.claude-3-5-sonnet-20241022-v2:0", "bedrock"],
     ["us.anthropic.claude-3-5-sonnet-20241022-v2:0", "bedrock"],
     ["meta.llama3-1-70b-instruct-v1:0", "bedrock"],
+    // OpenAI-compatible gateways
+    ["deepseek-chat", "deepseek"],
+    ["deepseek-reasoner", "deepseek"],
+    ["qwen-plus", "bailian"],
+    ["qwq-32b", "bailian"],
+    ["kimi-k2.6", "moonshot"],
+    ["moonshot-v1-8k", "moonshot"],
+    ["glm-4.7", "zhipu"],
   ];
   for (const [model, expected] of cases) {
     expect(providerKindFor(model)).toBe(expected);
@@ -39,6 +53,25 @@ test("providerKindFor infers the backend from the model-id prefix", () => {
 
 test("providerKindFor throws on an unrecognized model id", () => {
   expect(() => providerKindFor("mystery-model")).toThrow(ValidationError);
+});
+
+test("resolveModel honors a vendor/model override and strips the prefix", () => {
+  // Override forces the backend and returns the bare model id for the API call.
+  expect(resolveModel("bailian/deepseek-r1")).toEqual({ kind: "bailian", model: "deepseek-r1" });
+  expect(resolveModel("openai/gpt-4o")).toEqual({ kind: "openai", model: "gpt-4o" });
+  expect(resolveModel("bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0")).toEqual({
+    kind: "bedrock",
+    model: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+  });
+  // No override → inferred, model unchanged.
+  expect(resolveModel("deepseek-chat")).toEqual({ kind: "deepseek", model: "deepseek-chat" });
+  // An unknown prefix before "/" is NOT treated as an override.
+  expect(() => resolveModel("mystery/thing")).toThrow(ValidationError);
+  // Inherited object keys must not be accepted as a backend (own-keys guard).
+  expect(() => resolveModel("toString/x")).toThrow(ValidationError);
+  expect(() => resolveModel("constructor/x")).toThrow(ValidationError);
+  // An override with no model after the slash is rejected, not passed through empty.
+  expect(() => resolveModel("openai/")).toThrow(ValidationError);
 });
 
 test("providerFor caches one instance per backend", () => {
@@ -53,9 +86,14 @@ test("providerFor constructs the right backend for each prefix", () => {
   // Dummy keys so the OpenAI SDK constructor (which requires a key) doesn't throw.
   setEnv("OPENAI_API_KEY", "test-key");
   setEnv("GEMINI_API_KEY", "test-key");
+  setEnv("DEEPSEEK_API_KEY", "test-key");
+  setEnv("DASHSCOPE_API_KEY", "test-key");
   expect(providerFor("claude-opus-4-8", { cache: new Map() }).name).toBe("anthropic");
   expect(providerFor("gpt-4o", { cache: new Map() }).name).toBe("openai");
   expect(providerFor("gemini-2.5-pro", { cache: new Map() }).name).toBe("gemini");
+  // Compatible backends report their own name (not "openai") for traces/cost.
+  expect(providerFor("deepseek-chat", { cache: new Map() }).name).toBe("deepseek");
+  expect(providerFor("bailian/qwen-plus", { cache: new Map() }).name).toBe("bailian");
 });
 
 test("hasCredentials reflects the environment", () => {
@@ -67,6 +105,12 @@ test("hasCredentials reflects the environment", () => {
   setEnv("GEMINI_API_KEY", undefined);
   setEnv("GOOGLE_API_KEY", "g-test");
   expect(hasCredentials("gemini")).toBe(true); // GOOGLE_API_KEY is an accepted fallback
+
+  // Compatible backends check their own env var(s).
+  setEnv("DEEPSEEK_API_KEY", undefined);
+  expect(hasCredentials("deepseek")).toBe(false);
+  setEnv("DEEPSEEK_API_KEY", "sk-test");
+  expect(hasCredentials("deepseek")).toBe(true);
 
   // Bedrock defers to the AWS credential chain (resolved lazily by the SDK), so it's
   // always reported present even with no AWS env vars set.
@@ -80,4 +124,6 @@ test("credentialEnvFor names the variable for each backend", () => {
   expect(credentialEnvFor("openai")).toContain("OPENAI_API_KEY");
   expect(credentialEnvFor("gemini")).toContain("GEMINI_API_KEY");
   expect(credentialEnvFor("bedrock")).toContain("AWS");
+  expect(credentialEnvFor("deepseek")).toContain("DEEPSEEK_API_KEY");
+  expect(credentialEnvFor("bailian")).toContain("DASHSCOPE_API_KEY");
 });

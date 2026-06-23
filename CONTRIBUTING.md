@@ -108,8 +108,13 @@ The complete set across all surfaces (grepped from `process.env.*`):
 | `OPENAI_API_KEY` | CLI, worker | — | OpenAI auth — required to run a `gpt-*` / `o*` job |
 | `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) | CLI, worker | — | Gemini auth — required to run a `gemini-*` job |
 | `AWS_REGION` | CLI, worker | `us-east-1` | Bedrock region; credentials come from the standard AWS chain (`AWS_ACCESS_KEY_ID`/`AWS_PROFILE`/role) |
+| `DEEPSEEK_API_KEY` | CLI, worker | — | DeepSeek auth — required to run a `deepseek-*` job |
+| `DASHSCOPE_API_KEY` | CLI, worker | — | Aliyun Bailian (Qwen) auth — required to run a `qwen*` job |
+| `MOONSHOT_API_KEY` | CLI, worker | — | Moonshot (Kimi) auth — required to run a `kimi*`/`moonshot*` job |
+| `ZHIPU_API_KEY` (or `GLM_API_KEY`) | CLI, worker | — | Zhipu auth — required to run a `glm-*` job |
+| `DASHSCOPE_BASE_URL` / `DEEPSEEK_BASE_URL` / `MOONSHOT_BASE_URL` / `ZHIPU_BASE_URL` | CLI, worker | per-vendor default | Override an OpenAI-compatible gateway's base URL (e.g. DashScope international) |
 | `AURIGA_HOME` | CLI, API | `./.auriga/jobs` | Root of the file-backed store + audit log |
-| `AURIGA_MODEL` | CLI, API | `claude-sonnet-4-6` | Default model id for new runs; its prefix selects the provider backend |
+| `AURIGA_MODEL` | CLI, API | `claude-sonnet-4-6` | Default model id for new runs; its prefix selects the backend. Prefix with `vendor/` (e.g. `bailian/deepseek-r1`) to force the backend |
 | `AURIGA_SKILLS` | CLI (`skills`) | — | Path to a dev skill registry |
 | `AURIGA_REQUIRE_DOCKER` | CLI | unset | `1` requires an isolated Docker sandbox (no Local fallback) |
 | `USER` | CLI | `cli` | Recorded as the audit actor for `create` / `approve` |

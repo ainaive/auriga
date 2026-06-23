@@ -65,8 +65,11 @@ Codenames: **Currus** = harness runtime (`packages/currus`), **Habenae** = contr
 - **Model backend is chosen by the model-id prefix** via `providerFor(modelId)` in
   [`@auriga/provider`](packages/provider): `claude-*` → Anthropic (`ANTHROPIC_API_KEY`), `gpt-*`/`o*` →
   OpenAI (`OPENAI_API_KEY`), `gemini-*` → Gemini (`GEMINI_API_KEY`/`GOOGLE_API_KEY`), vendor-prefixed
-  ids like `us.anthropic.*` → Bedrock (AWS credential chain + `AWS_REGION`). Call sites gate on
-  `hasCredentials(kind)` before constructing.
+  ids like `us.anthropic.*` → Bedrock (AWS credential chain + `AWS_REGION`). OpenAI-compatible gateways
+  reuse `OpenAIProvider` via the `OPENAI_COMPATIBLE` registry: `deepseek-*` (`DEEPSEEK_API_KEY`),
+  `qwen*`/`qwq*`/`qvq*` → Bailian (`DASHSCOPE_API_KEY`), `kimi*`/`moonshot*` (`MOONSHOT_API_KEY`),
+  `glm-*` → Zhipu (`ZHIPU_API_KEY`/`GLM_API_KEY`). An explicit `vendor/model` id (e.g. `bailian/deepseek-r1`) forces the backend;
+  `resolveModel` returns the stripped id to run. Call sites gate on `hasCredentials(kind)` before constructing.
 
 ## More
 

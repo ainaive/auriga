@@ -1,10 +1,4 @@
-import {
-  MODELS,
-  type ProviderName,
-  hasCredentials,
-  providerFor,
-  providerKindFor,
-} from "@auriga/provider";
+import { MODELS, hasCredentials, providerFor, resolveModel } from "@auriga/provider";
 import { selectDriver, type SandboxDriver } from "@auriga/sandbox";
 import { Worker, type AuditLog, type EventBus, type JobStore } from "@auriga/habenae";
 
@@ -22,17 +16,18 @@ export function createRunner(
   audit: AuditLog,
   bus?: EventBus,
 ): { run: (jobId: string) => void } | undefined {
-  const model = process.env.AURIGA_MODEL ?? MODELS.sonnet;
-  // Pick the backend from the model-id prefix and gate on its credentials. A bad
-  // AURIGA_MODEL must not crash runner creation — let the route answer 503 instead.
-  let kind: ProviderName;
+  const rawModel = process.env.AURIGA_MODEL ?? MODELS.sonnet;
+  // Resolve the backend + the bare model id (a `vendor/model` override is stripped).
+  // A bad AURIGA_MODEL must not crash runner creation — let the route answer 503.
+  let resolved: ReturnType<typeof resolveModel>;
   try {
-    kind = providerKindFor(model);
+    resolved = resolveModel(rawModel);
   } catch {
-    console.error(`[auriga] invalid AURIGA_MODEL "${model}": no provider matches its prefix`);
+    console.error(`[auriga] invalid AURIGA_MODEL "${rawModel}": no provider matches its prefix`);
     return undefined;
   }
-  if (!hasCredentials(kind)) return undefined;
+  if (!hasCredentials(resolved.kind)) return undefined;
+  const model = resolved.model;
   const inFlight = new Set<string>();
   // Resolve the sandbox driver once, lazily (Local fallback unless AURIGA_REQUIRE_DOCKER=1).
   let driverP: Promise<SandboxDriver> | undefined;
@@ -47,7 +42,8 @@ export function createRunner(
         try {
           const worker = new Worker({
             store,
-            provider: providerFor(model),
+            // Resolve the backend from the raw id (honors a `vendor/` override); run the bare model.
+            provider: providerFor(rawModel),
             model,
             sandboxDriver: await driver(),
             audit,
