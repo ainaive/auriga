@@ -42,9 +42,9 @@ test("providerKindFor infers the backend from the model-id prefix", () => {
     ["deepseek-reasoner", "deepseek"],
     ["qwen-plus", "bailian"],
     ["qwq-32b", "bailian"],
-    ["kimi-k2-0905-preview", "moonshot"],
+    ["kimi-k2.6", "moonshot"],
     ["moonshot-v1-8k", "moonshot"],
-    ["glm-4-plus", "zhipu"],
+    ["glm-4.7", "zhipu"],
   ];
   for (const [model, expected] of cases) {
     expect(providerKindFor(model)).toBe(expected);
