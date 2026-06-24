@@ -70,6 +70,9 @@ Codenames: **Currus** = harness runtime (`packages/currus`), **Habenae** = contr
   `qwen*`/`qwq*`/`qvq*` → Bailian (`DASHSCOPE_API_KEY`), `kimi*`/`moonshot*` (`MOONSHOT_API_KEY`),
   `glm-*` → Zhipu (`ZHIPU_API_KEY`/`GLM_API_KEY`). An explicit `vendor/model` id (e.g. `bailian/deepseek-r1`) forces the backend;
   `resolveModel` returns the stripped id to run. Call sites gate on `hasCredentials(kind)` before constructing.
+- **Provider keys can also be set in the console** (`/config`): stored AES-256-GCM-encrypted in the config
+  store (needs `AURIGA_CONFIG_SECRET`; fail-closed), redacted from the open `GET /config`, injected into the
+  factory via a `CredentialSource` that **overrides env**. Never log or return these secrets.
 
 ## More
 
