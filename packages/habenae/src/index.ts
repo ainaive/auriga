@@ -47,12 +47,17 @@ export {
 } from "./dashboard";
 export {
   type AurigaConfig,
+  type ProviderCredential,
   type ConfigStore,
+  type RedactedConfig,
+  type RedactedProvider,
   InMemoryConfigStore,
   FileConfigStore,
   StoreBackedPolicy,
   ConfigSchema,
   parseConfig,
+  redactConfig,
+  mergeProviderSecrets,
   DEFAULT_CONFIG,
 } from "./config-store";
 export { PostgresJobStore, migrate, SCHEMA_SQL } from "./postgres-store";
