@@ -289,23 +289,37 @@ function ProviderRow({
           Credentials come from the {meta.env} (env / instance role) — not set here.
         </p>
       ) : (
-        <div className="mt-2 grid gap-3 sm:grid-cols-2">
-          <Field label="API key" hint={draft.configured ? "leave blank to keep" : meta.env}>
-            <Input
-              type="password"
-              autoComplete="off"
-              value={draft.apiKey}
-              placeholder={draft.configured ? "••••••••" : ""}
-              onChange={(e) => onChange({ ...draft, apiKey: e.target.value })}
-            />
-          </Field>
-          {meta.supportsBaseUrl && (
-            <Field label="Base URL" hint="optional gateway override">
+        <div className="mt-2 space-y-2">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="API key" hint={draft.configured ? "leave blank to keep" : meta.env}>
               <Input
-                value={draft.baseURL}
-                onChange={(e) => onChange({ ...draft, baseURL: e.target.value })}
+                type="password"
+                autoComplete="off"
+                disabled={draft.clear}
+                value={draft.clear ? "" : draft.apiKey}
+                placeholder={draft.configured ? "••••••••" : ""}
+                onChange={(e) => onChange({ ...draft, apiKey: e.target.value })}
               />
             </Field>
+            {meta.supportsBaseUrl && (
+              <Field label="Base URL" hint="optional gateway override">
+                <Input
+                  disabled={draft.clear}
+                  value={draft.clear ? "" : draft.baseURL}
+                  onChange={(e) => onChange({ ...draft, baseURL: e.target.value })}
+                />
+              </Field>
+            )}
+          </div>
+          {draft.configured && (
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={Boolean(draft.clear)}
+                onChange={(e) => onChange({ ...draft, clear: e.target.checked })}
+              />
+              Clear stored credentials on save
+            </label>
           )}
         </div>
       )}

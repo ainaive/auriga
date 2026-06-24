@@ -68,6 +68,19 @@ describe("buildConfig", () => {
     expect(providers).not.toHaveProperty("gemini");
     expect(providers).not.toHaveProperty("bedrock");
   });
+
+  it("an explicit clear sends empty strings to revoke the stored credential", () => {
+    const { config } = buildConfig({
+      ...base(),
+      providers: [
+        { kind: "deepseek", configured: true, apiKey: "", baseURL: "", clear: true },
+        { kind: "openai", configured: true, apiKey: "", baseURL: "", clear: true },
+      ],
+    });
+    const providers = config?.providers as Record<string, { apiKey?: string; baseURL?: string }>;
+    expect(providers.deepseek).toEqual({ apiKey: "", baseURL: "" }); // supports a base URL
+    expect(providers.openai).toEqual({ apiKey: "" }); // no base URL field
+  });
 });
 
 describe("configToForm providers", () => {

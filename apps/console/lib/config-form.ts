@@ -50,6 +50,8 @@ export interface ProviderDraft {
   /** A newly-typed key; blank means "keep the stored key". */
   apiKey: string;
   baseURL: string;
+  /** Explicit revoke: send `apiKey: ""` (+ baseURL) to clear the stored credential. */
+  clear?: boolean;
 }
 
 export interface ConfigFormState {
@@ -113,20 +115,26 @@ export function buildConfig(form: ConfigFormState): ConfigBuildResult {
     return policy;
   });
 
-  // Provider credentials: a typed apiKey replaces the stored one; blank keeps it (the
-  // server merges). baseURL is non-secret and round-trips via the redacted GET. Read-only
-  // (Bedrock) and untouched/unconfigured rows are omitted entirely (the server preserves
-  // anything not present).
+  // Provider credentials. The server merges: omitted field ⇒ keep, "" ⇒ clear, value ⇒
+  // replace. So a typed apiKey replaces and a blank one keeps; an explicit "clear" sends
+  // "" to revoke. baseURL is non-secret and round-trips via the redacted GET. Read-only
+  // (Bedrock) and untouched/unconfigured rows are omitted (the server preserves them).
   const byKind = new Map(PROVIDER_CATALOG.map((c) => [c.kind, c]));
   const providers: Record<string, { apiKey?: string; baseURL?: string }> = {};
   for (const d of form.providers) {
-    if (byKind.get(d.kind)?.readOnly) continue;
+    const meta = byKind.get(d.kind);
+    if (meta?.readOnly) continue;
     const apiKey = d.apiKey.trim();
     const baseURL = d.baseURL.trim();
-    if (!d.configured && !apiKey && !baseURL) continue; // nothing to send
+    if (!d.configured && !apiKey && !baseURL && !d.clear) continue; // nothing to send
     const entry: { apiKey?: string; baseURL?: string } = {};
-    if (apiKey) entry.apiKey = apiKey; // typed → replace; omitted → server keeps
-    if (baseURL) entry.baseURL = baseURL;
+    if (d.clear) {
+      entry.apiKey = ""; // explicit revoke
+      if (meta?.supportsBaseUrl) entry.baseURL = "";
+    } else {
+      if (apiKey) entry.apiKey = apiKey; // typed → replace; omitted → server keeps
+      if (baseURL) entry.baseURL = baseURL;
+    }
     providers[d.kind] = entry;
   }
 
