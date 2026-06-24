@@ -178,3 +178,34 @@ test("mergeProviderSecrets keeps, replaces, and clears keys correctly", () => {
   expect(merged.providers?.openai?.apiKey).toBe("new-oa");
   expect(merged.providers?.zhipu).toBeUndefined(); // cleared + dropped
 });
+
+test("mergeProviderSecrets preserves a stored baseURL when the update omits it", () => {
+  const current = {
+    policies: [{ factio: "default", roles: ["admin"] }],
+    quotas: { global: 1, perFactio: 1 },
+    providers: { deepseek: { apiKey: "k", baseURL: "https://gw.example.com/v1" } },
+  };
+  // Rotating only the key must NOT erase the stored baseURL.
+  const rotated = mergeProviderSecrets(
+    {
+      policies: current.policies,
+      quotas: current.quotas,
+      providers: { deepseek: { apiKey: "k2" } },
+    },
+    current,
+  );
+  expect(rotated.providers?.deepseek).toEqual({
+    apiKey: "k2",
+    baseURL: "https://gw.example.com/v1",
+  });
+  // An explicit empty string clears the baseURL.
+  const cleared = mergeProviderSecrets(
+    {
+      policies: current.policies,
+      quotas: current.quotas,
+      providers: { deepseek: { baseURL: "" } },
+    },
+    current,
+  );
+  expect(cleared.providers?.deepseek).toEqual({ apiKey: "k" });
+});

@@ -208,26 +208,26 @@ export function redactConfig(cfg: AurigaConfig): RedactedConfig {
 }
 
 /**
- * Merge an incoming config (from the admin) onto the stored one, applying secret-update
- * semantics so plaintext never has to round-trip through the browser: a provider's
- * `apiKey` of `undefined` keeps the stored key, `""` clears it, and a non-empty value
- * replaces it. Policies and quotas are full-replace. `baseURL` is taken from the incoming
- * entry (the redacted GET already echoes it, so the form preserves it).
+ * Merge an incoming config (from the admin) onto the stored one, applying field-update
+ * semantics so plaintext never has to round-trip through the browser. For both `apiKey`
+ * and `baseURL`: `undefined` keeps the stored value, `""` clears it, and a non-empty value
+ * replaces it. Policies and quotas are full-replace; providers absent from `incoming` are
+ * preserved unchanged.
  */
 export function mergeProviderSecrets(incoming: AurigaConfig, current: AurigaConfig): AurigaConfig {
   const providers: Record<string, ProviderCredential> = {};
   for (const [kind, cred] of Object.entries(current.providers ?? {})) {
     providers[kind] = { ...cred };
   }
+  const mergeField = (incomingVal: string | undefined, prevVal: string | undefined) =>
+    incomingVal === undefined ? prevVal : incomingVal === "" ? undefined : incomingVal;
   for (const [kind, cred] of Object.entries(incoming.providers ?? {})) {
     const prev = providers[kind] ?? {};
     const next: ProviderCredential = {};
-    if (cred.apiKey === undefined) {
-      if (prev.apiKey) next.apiKey = prev.apiKey; // keep
-    } else if (cred.apiKey !== "") {
-      next.apiKey = cred.apiKey; // replace ("" → clear, i.e. omit)
-    }
-    if (cred.baseURL) next.baseURL = cred.baseURL;
+    const apiKey = mergeField(cred.apiKey, prev.apiKey);
+    const baseURL = mergeField(cred.baseURL, prev.baseURL);
+    if (apiKey) next.apiKey = apiKey;
+    if (baseURL) next.baseURL = baseURL;
     providers[kind] = next;
   }
   // Drop fully-empty entries so an untouched provider doesn't persist as `{}`.
