@@ -12,10 +12,51 @@ export interface PolicyDraft {
   allowedSkills: string;
 }
 
+/**
+ * The backends shown in the provider-credentials section. Data-only (no SDK import) so
+ * the console bundle stays lean. Keep in sync with the provider registry / factory.
+ */
+export interface ProviderCatalogEntry {
+  kind: string;
+  label: string;
+  /** Env var(s) the backend reads as a fallback — shown as a hint. */
+  env: string;
+  supportsBaseUrl: boolean;
+  /** Bedrock has no single key — credentials come from the AWS chain (env only). */
+  readOnly?: boolean;
+}
+
+export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
+  { kind: "anthropic", label: "Anthropic", env: "ANTHROPIC_API_KEY", supportsBaseUrl: false },
+  { kind: "openai", label: "OpenAI", env: "OPENAI_API_KEY", supportsBaseUrl: false },
+  { kind: "gemini", label: "Gemini", env: "GEMINI_API_KEY / GOOGLE_API_KEY", supportsBaseUrl: false },
+  {
+    kind: "bedrock",
+    label: "Bedrock",
+    env: "AWS credential chain",
+    supportsBaseUrl: false,
+    readOnly: true,
+  },
+  { kind: "deepseek", label: "DeepSeek", env: "DEEPSEEK_API_KEY", supportsBaseUrl: true },
+  { kind: "bailian", label: "Aliyun Bailian (Qwen)", env: "DASHSCOPE_API_KEY", supportsBaseUrl: true },
+  { kind: "moonshot", label: "Moonshot (Kimi)", env: "MOONSHOT_API_KEY", supportsBaseUrl: true },
+  { kind: "zhipu", label: "Zhipu GLM", env: "ZHIPU_API_KEY / GLM_API_KEY", supportsBaseUrl: true },
+];
+
+export interface ProviderDraft {
+  kind: string;
+  /** Whether a key is already stored (from the redacted GET) — never the key itself. */
+  configured: boolean;
+  /** A newly-typed key; blank means "keep the stored key". */
+  apiKey: string;
+  baseURL: string;
+}
+
 export interface ConfigFormState {
   global: string;
   perFactio: string;
   policies: PolicyDraft[];
+  providers: ProviderDraft[];
 }
 
 export function configToForm(cfg: AurigaConfig): ConfigFormState {
@@ -27,6 +68,12 @@ export function configToForm(cfg: AurigaConfig): ConfigFormState {
       roles: (p.roles ?? []).join(", "),
       allowedTools: (p.allowed_tools ?? []).join(", "),
       allowedSkills: (p.allowed_skills ?? []).join(", "),
+    })),
+    providers: PROVIDER_CATALOG.map((entry) => ({
+      kind: entry.kind,
+      configured: cfg.providers?.[entry.kind]?.configured ?? false,
+      apiKey: "", // the key is never sent to the client
+      baseURL: cfg.providers?.[entry.kind]?.baseURL ?? "",
     })),
   };
 }
@@ -66,6 +113,25 @@ export function buildConfig(form: ConfigFormState): ConfigBuildResult {
     return policy;
   });
 
+  // Provider credentials: a typed apiKey replaces the stored one; blank keeps it (the
+  // server merges). baseURL is non-secret and round-trips via the redacted GET. Read-only
+  // (Bedrock) and untouched/unconfigured rows are omitted entirely (the server preserves
+  // anything not present).
+  const byKind = new Map(PROVIDER_CATALOG.map((c) => [c.kind, c]));
+  const providers: Record<string, { apiKey?: string; baseURL?: string }> = {};
+  for (const d of form.providers) {
+    if (byKind.get(d.kind)?.readOnly) continue;
+    const apiKey = d.apiKey.trim();
+    const baseURL = d.baseURL.trim();
+    if (!d.configured && !apiKey && !baseURL) continue; // nothing to send
+    const entry: { apiKey?: string; baseURL?: string } = {};
+    if (apiKey) entry.apiKey = apiKey; // typed → replace; omitted → server keeps
+    if (baseURL) entry.baseURL = baseURL;
+    providers[d.kind] = entry;
+  }
+
   if (Object.keys(errors).length > 0) return { errors };
-  return { config: { policies, quotas: { global, perFactio } }, errors: {} };
+  const config: Record<string, unknown> = { policies, quotas: { global, perFactio } };
+  if (Object.keys(providers).length) config.providers = providers;
+  return { config, errors: {} };
 }

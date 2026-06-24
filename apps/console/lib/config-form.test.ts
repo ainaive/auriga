@@ -5,6 +5,7 @@ const base = (): ConfigFormState => ({
   global: "2",
   perFactio: "1",
   policies: [{ factio: "acme", roles: "dev, admin", allowedTools: "bash", allowedSkills: "" }],
+  providers: [],
 });
 
 describe("configToForm", () => {
@@ -49,5 +50,36 @@ describe("buildConfig", () => {
     const { config, errors } = buildConfig({ ...base(), policies: [] });
     expect(errors).toEqual({});
     expect(config?.policies).toEqual([]);
+  });
+
+  it("emits provider credentials: typed key set, blank kept, untouched omitted", () => {
+    const { config } = buildConfig({
+      ...base(),
+      providers: [
+        { kind: "deepseek", configured: false, apiKey: "sk-new", baseURL: "" },
+        { kind: "openai", configured: true, apiKey: "", baseURL: "" }, // configured → sent (key kept)
+        { kind: "gemini", configured: false, apiKey: "", baseURL: "" }, // untouched → omitted
+        { kind: "bedrock", configured: false, apiKey: "ignored", baseURL: "" }, // read-only → omitted
+      ],
+    });
+    const providers = config?.providers as Record<string, { apiKey?: string }>;
+    expect(providers.deepseek).toEqual({ apiKey: "sk-new" });
+    expect(providers.openai).toEqual({}); // present but no key → server preserves stored key
+    expect(providers).not.toHaveProperty("gemini");
+    expect(providers).not.toHaveProperty("bedrock");
+  });
+});
+
+describe("configToForm providers", () => {
+  it("reflects the redacted GET (configured + baseURL, never the key)", () => {
+    const form = configToForm({
+      policies: [],
+      quotas: { global: 1, perFactio: 1 },
+      providers: { deepseek: { configured: true, baseURL: "https://api.deepseek.com" } },
+    });
+    const ds = form.providers.find((p) => p.kind === "deepseek");
+    expect(ds).toMatchObject({ configured: true, baseURL: "https://api.deepseek.com", apiKey: "" });
+    const openai = form.providers.find((p) => p.kind === "openai");
+    expect(openai).toMatchObject({ configured: false, apiKey: "" });
   });
 });

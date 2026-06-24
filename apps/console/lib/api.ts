@@ -103,9 +103,16 @@ export interface FactioPolicy {
   allowed_skills?: string[];
 }
 
+/** Provider credentials as returned by the redacted GET /config (never the key itself). */
+export interface RedactedProvider {
+  configured: boolean;
+  baseURL?: string;
+}
+
 export interface AurigaConfig {
   policies: FactioPolicy[];
   quotas: { global: number; perFactio: number };
+  providers?: Record<string, RedactedProvider>;
 }
 
 async function get<T>(path: string, withAuth = false): Promise<T | null> {
