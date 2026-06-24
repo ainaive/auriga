@@ -9,6 +9,7 @@ import {
 import { selectDriver, type SandboxDriver } from "@auriga/sandbox";
 import {
   Worker,
+  liveEvent,
   type AuditLog,
   type ConfigStore,
   type EventBus,
@@ -58,7 +59,18 @@ export function createRunner(
           if (!hasCredentials(resolved.kind, credentials)) {
             const reason = `no credentials for ${resolved.kind} — set ${credentialEnvFor(resolved.kind)} or add a key in the console`;
             console.error(`[auriga] run ${jobId}: ${reason}`);
+            const record = await store.get(jobId);
             await store.update(jobId, { state: "failed", reason });
+            // Publish the terminal envelope so SSE watchers close instead of hanging.
+            if (bus && record) {
+              const factio = record.spec.factio;
+              await bus.publish(
+                liveEvent(jobId, factio, { kind: "state", state: "failed", reason }),
+              );
+              await bus.publish(
+                liveEvent(jobId, factio, { kind: "done", state: "failed", reason }),
+              );
+            }
             return;
           }
           const worker = new Worker({

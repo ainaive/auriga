@@ -256,7 +256,7 @@ test("provider credentials: GET redacts the apiKey; PUT merges (omit keeps the s
   });
 
   // A later PUT that omits the apiKey preserves the stored key (merge).
-  await app.request("/config", {
+  const merge = await app.request("/config", {
     method: "PUT",
     headers: admin,
     body: JSON.stringify({
@@ -264,6 +264,7 @@ test("provider credentials: GET redacts the apiKey; PUT merges (omit keeps the s
       providers: { deepseek: { baseURL: "https://api.deepseek.com" } },
     }),
   });
+  expect(merge.status).toBe(200); // the merge must succeed for the assertion below to be meaningful
   expect((await config.get()).providers?.deepseek?.apiKey).toBe("sk-secret");
 });
 
