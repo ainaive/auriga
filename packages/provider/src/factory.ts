@@ -14,6 +14,18 @@ import {
 type NativeKind = "anthropic" | "gemini" | "bedrock";
 export type ProviderName = NativeKind | CompatibleKind;
 
+/** Resolved credentials for a backend (e.g. from the console config store). */
+export interface ProviderCredentials {
+  apiKey?: string;
+  baseURL?: string;
+}
+
+/**
+ * Supplies per-backend credentials at construction time (console-configured, overriding
+ * env). Returning undefined falls back to environment variables.
+ */
+export type CredentialSource = (kind: ProviderName) => ProviderCredentials | undefined;
+
 function isProviderName(s: string): s is ProviderName {
   // `Object.hasOwn`, not `in` — `in` accepts inherited keys like "toString"/"constructor",
   // which would pass the guard and then crash construct() on a non-entry.
@@ -65,23 +77,26 @@ export function providerKindFor(modelId: string): ProviderName {
   return resolveModel(modelId).kind;
 }
 
-function construct(kind: ProviderName): ModelProvider {
+function construct(kind: ProviderName, cred?: ProviderCredentials): ModelProvider {
   switch (kind) {
     case "anthropic":
-      return new AnthropicProvider();
+      return new AnthropicProvider(cred?.apiKey ? { apiKey: cred.apiKey } : {});
     case "gemini":
-      return new GeminiProvider();
+      return new GeminiProvider(cred?.apiKey ? { apiKey: cred.apiKey } : {});
     case "bedrock":
       return new BedrockProvider();
     default: {
       // OpenAI-compatible: same adapter, different base URL + credentials + token field.
+      // Console-configured credentials override the env-derived defaults.
       const entry: CompatibleBackend = OPENAI_COMPATIBLE[kind];
       const baseURL =
-        (entry.baseURLEnv ? process.env[entry.baseURLEnv] : undefined) ?? entry.baseURL;
+        cred?.baseURL ??
+        (entry.baseURLEnv ? process.env[entry.baseURLEnv] : undefined) ??
+        entry.baseURL;
       return new OpenAIProvider({
         name: kind,
         ...(baseURL !== undefined ? { baseURL } : {}),
-        apiKey: firstPresentEnv(entry.apiKeyEnv),
+        apiKey: cred?.apiKey ?? firstPresentEnv(entry.apiKeyEnv),
         maxTokensField: entry.maxTokensField,
       });
     }
@@ -92,15 +107,18 @@ const singletons = new Map<ProviderName, ModelProvider>();
 
 /**
  * Resolve a ModelProvider for a model id, inferring and caching the backend.
- * Constructors read their own credentials from the environment; call sites gate
- * on {@link hasCredentials} to answer 503 before construction. Pass `opts.cache`
- * to isolate instances (e.g. in tests).
+ * Constructors read credentials from `opts.credentials` (console-configured, overriding
+ * env) or fall back to environment variables; call sites gate on {@link hasCredentials}
+ * before construction. Pass `opts.cache` to isolate instances (e.g. in tests). When a
+ * credential source is given the singleton cache is bypassed so a console edit takes
+ * effect immediately.
  */
 export function providerFor(
   modelId: string,
-  opts: { cache?: Map<ProviderName, ModelProvider> } = {},
+  opts: { cache?: Map<ProviderName, ModelProvider>; credentials?: CredentialSource } = {},
 ): ModelProvider {
   const kind = providerKindFor(modelId);
+  if (opts.credentials) return construct(kind, opts.credentials(kind));
   const cache = opts.cache ?? singletons;
   const existing = cache.get(kind);
   if (existing) return existing;
@@ -109,8 +127,12 @@ export function providerFor(
   return provider;
 }
 
-/** Whether the credentials a backend needs are present in the environment. */
-export function hasCredentials(kind: ProviderName): boolean {
+/**
+ * Whether a backend has usable credentials — a console-configured key (via
+ * `credentials`) takes priority, else the relevant environment variable(s).
+ */
+export function hasCredentials(kind: ProviderName, credentials?: CredentialSource): boolean {
+  if (credentials?.(kind)?.apiKey) return true;
   switch (kind) {
     case "anthropic":
       return Boolean(process.env.ANTHROPIC_API_KEY);
