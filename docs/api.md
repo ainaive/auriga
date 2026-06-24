@@ -47,8 +47,8 @@ x-auriga-role:   <role>
 | `POST` | `/jobs/:id/run` | tenant | Kick a runnable job to the background runner (202) | `202`, `401`, `404`, `409`, `503` |
 | `POST` | `/jobs/:id/pause` | tenant | Cooperative **pause** of an active run (resumable; `/run` resumes) | `200`, `401`, `404`, `409` |
 | `POST` | `/jobs/:id/cancel` | tenant | Cooperative cancellation (signals an active run, marks an idle one) | `200`, `401`, `404`, `409` |
-| `GET` | `/config` | open | Current RBAC policies + quotas | `200`, `501` |
-| `PUT` | `/config` | admin | Replace policies + quotas (admin role); validated + audited | `200`, `400`, `401`, `403`, `501` |
+| `GET` | `/config` | open | RBAC policies + quotas + provider credentials (**apiKeys redacted** to a `configured` flag + baseURL) | `200`, `501` |
+| `PUT` | `/config` | admin | Replace policies/quotas; merge provider credentials (omit `apiKey` ⇒ keep, `""` ⇒ clear; storing a key needs `AURIGA_CONFIG_SECRET`); validated + audited | `200`, `400`, `401`, `403`, `501` |
 | `GET` | `/dashboard` | open | Org rollup: totals, per-tenant, cost trend, per-model, active vs. quotas | `200` |
 | `GET` | `/audit` | open | Audit events; `?factio=F` filters | `200` |
 | `GET` | `/skills` | open | Marketplace; `?q=`, `?factio=` (default `default`), `?role=` (default `viewer`) | `200` |

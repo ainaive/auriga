@@ -13,6 +13,8 @@ export {
   hasCredentials,
   credentialEnvFor,
   type ProviderName,
+  type CredentialSource,
+  type ProviderCredentials,
 } from "./factory";
 export {
   OPENAI_COMPATIBLE,

@@ -10,7 +10,9 @@ import {
 } from "@auriga/core";
 import {
   buildDashboard,
+  mergeProviderSecrets,
   parseConfig,
+  redactConfig,
   safeAudit,
   submitJob,
   type AuditLog,
@@ -396,11 +398,12 @@ export function createApp(deps: ApiDeps): Hono {
     return c.json({ pausing: true });
   });
 
-  // Runtime config: GET is an open governance view; PUT rewrites RBAC/quotas so it
+  // Runtime config: GET is an open governance view (provider apiKeys are REDACTED — only a
+  // `configured` flag + baseURL are returned); PUT rewrites RBAC/quotas/provider creds so it
   // requires an authenticated `admin` (defense-in-depth on top of the proxy).
   app.get("/config", async (c) => {
     if (!deps.config) return c.json({ error: "config not available" }, 501);
-    return c.json(await deps.config.get());
+    return c.json(redactConfig(await deps.config.get()));
   });
 
   app.put("/config", async (c) => {
@@ -415,15 +418,18 @@ export function createApp(deps: ApiDeps): Hono {
       return c.json({ error: "invalid json" }, 400);
     }
     try {
-      const cfg = parseConfig(body);
-      await deps.config.set(cfg);
+      // Merge provider secrets onto the stored config (omitted apiKey ⇒ keep, "" ⇒ clear),
+      // so the admin never needs the plaintext key the redacted GET withheld.
+      const incoming = parseConfig(body);
+      const merged = mergeProviderSecrets(incoming, await deps.config.get());
+      await deps.config.set(merged); // throws if a key is set without AURIGA_CONFIG_SECRET
       await safeAudit(deps.audit, {
         factio: actor.factio,
         actor: actor.role,
         action: "config.updated",
         job_id: null,
       });
-      return c.json(cfg);
+      return c.json(redactConfig(merged)); // never echo secrets back
     } catch (err) {
       return c.json({ error: err instanceof Error ? err.message : "invalid config" }, 400);
     }

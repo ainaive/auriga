@@ -13,8 +13,11 @@ import {
   buildConfig,
   configToForm,
   emptyPolicy,
+  PROVIDER_CATALOG,
   type ConfigFormState,
   type PolicyDraft,
+  type ProviderCatalogEntry,
+  type ProviderDraft,
 } from "@/lib/config-form";
 
 /** Edit RBAC policies + scheduler quotas. Read-only unless `canEdit` (admin); the API
@@ -42,6 +45,8 @@ export function ConfigForm({ initial, canEdit = true }: { initial: AurigaConfig;
   const addPolicy = () => setForm((f) => ({ ...f, policies: [...f.policies, emptyPolicy()] }));
   const removePolicy = (i: number) =>
     setForm((f) => ({ ...f, policies: f.policies.filter((_, j) => j !== i) }));
+  const setProvider = (i: number, p: ProviderDraft) =>
+    setForm((f) => ({ ...f, providers: f.providers.map((x, j) => (j === i ? p : x)) }));
 
   function save(payload: string) {
     setError(null);
@@ -144,6 +149,28 @@ export function ConfigForm({ initial, canEdit = true }: { initial: AurigaConfig;
             </div>
           </div>
 
+          <div className="space-y-2">
+            <Label>Provider credentials</Label>
+            <p className="text-xs text-muted-foreground">
+              Stored encrypted at rest and used over env vars. Leave a key blank to keep the stored
+              one; setting a key requires <code>AURIGA_CONFIG_SECRET</code> on the server.
+            </p>
+            <div className="space-y-3">
+              {form.providers.map((d, i) => {
+                const meta = PROVIDER_CATALOG.find((c) => c.kind === d.kind);
+                if (!meta) return null;
+                return (
+                  <ProviderRow
+                    key={d.kind}
+                    draft={d}
+                    meta={meta}
+                    onChange={(next) => setProvider(i, next)}
+                  />
+                );
+              })}
+            </div>
+          </div>
+
           {canEdit && (
             <Button onClick={onSaveForm} disabled={pending}>
               {pending ? "Saving…" : "Save config"}
@@ -230,6 +257,72 @@ function PolicyRow({
         </Button>
         {error && <span className="text-xs text-destructive">{error}</span>}
       </div>
+    </div>
+  );
+}
+
+function ProviderRow({
+  draft,
+  meta,
+  onChange,
+}: {
+  draft: ProviderDraft;
+  meta: ProviderCatalogEntry;
+  onChange: (p: ProviderDraft) => void;
+}) {
+  return (
+    <div className="rounded-lg border bg-muted/30 p-3">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium">{meta.label}</span>
+        <span
+          className={
+            draft.configured
+              ? "text-xs text-emerald-600 dark:text-emerald-400"
+              : "text-xs text-muted-foreground"
+          }
+        >
+          {draft.configured ? "configured" : "not set"}
+        </span>
+      </div>
+      {meta.readOnly ? (
+        <p className="mt-1 text-xs text-muted-foreground">
+          Credentials come from the {meta.env} (env / instance role) — not set here.
+        </p>
+      ) : (
+        <div className="mt-2 space-y-2">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="API key" hint={draft.configured ? "leave blank to keep" : meta.env}>
+              <Input
+                type="password"
+                autoComplete="off"
+                disabled={draft.clear}
+                value={draft.clear ? "" : draft.apiKey}
+                placeholder={draft.configured ? "••••••••" : ""}
+                onChange={(e) => onChange({ ...draft, apiKey: e.target.value })}
+              />
+            </Field>
+            {meta.supportsBaseUrl && (
+              <Field label="Base URL" hint="optional gateway override">
+                <Input
+                  disabled={draft.clear}
+                  value={draft.clear ? "" : draft.baseURL}
+                  onChange={(e) => onChange({ ...draft, baseURL: e.target.value })}
+                />
+              </Field>
+            )}
+          </div>
+          {draft.configured && (
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={Boolean(draft.clear)}
+                onChange={(e) => onChange({ ...draft, clear: e.target.checked })}
+              />
+              Clear stored credentials on save
+            </label>
+          )}
+        </div>
+      )}
     </div>
   );
 }

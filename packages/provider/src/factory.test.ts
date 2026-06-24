@@ -7,7 +7,7 @@ import {
   providerKindFor,
   resolveModel,
 } from "./factory";
-import type { ProviderName } from "./factory";
+import type { CredentialSource, ProviderName } from "./factory";
 
 const savedEnv: Record<string, string | undefined> = {};
 afterEach(() => {
@@ -126,4 +126,25 @@ test("credentialEnvFor names the variable for each backend", () => {
   expect(credentialEnvFor("bedrock")).toContain("AWS");
   expect(credentialEnvFor("deepseek")).toContain("DEEPSEEK_API_KEY");
   expect(credentialEnvFor("bailian")).toContain("DASHSCOPE_API_KEY");
+});
+
+test("a CredentialSource supplies a key when the env var is absent (console overrides env)", () => {
+  setEnv("DEEPSEEK_API_KEY", undefined);
+  const credentials: CredentialSource = (kind) =>
+    kind === "deepseek" ? { apiKey: "ds-from-config" } : undefined;
+  // hasCredentials sees the config key even with no env var.
+  expect(hasCredentials("deepseek")).toBe(false);
+  expect(hasCredentials("deepseek", credentials)).toBe(true);
+  // providerFor constructs the backend (no env key needed) and reports its name.
+  expect(providerFor("deepseek-chat", { credentials }).name).toBe("deepseek");
+});
+
+test("a CredentialSource bypasses the singleton cache (edits take effect immediately)", () => {
+  setEnv("OPENAI_API_KEY", "env-key");
+  // Without a source: same cached instance.
+  const cache = new Map<ProviderName, ModelProvider>();
+  expect(providerFor("gpt-4o", { cache })).toBe(providerFor("gpt-4o", { cache }));
+  // With a source: a fresh instance each call so updated credentials apply.
+  const credentials: CredentialSource = () => ({ apiKey: "k" });
+  expect(providerFor("gpt-4o", { credentials })).not.toBe(providerFor("gpt-4o", { credentials }));
 });
