@@ -221,6 +221,52 @@ test("GET /config returns the config; PUT requires admin + validates + audits", 
   expect(audit.map((e) => e.action)).toContain("config.updated");
 });
 
+test("provider credentials: GET redacts the apiKey; PUT merges (omit keeps the stored key)", async () => {
+  const config = new InMemoryConfigStore();
+  const app = createApp({ ...deps(), config });
+  const admin = {
+    "content-type": "application/json",
+    "x-auriga-factio": "default",
+    "x-auriga-role": "admin",
+  };
+  const base = {
+    policies: [{ factio: "default", roles: ["admin"] }],
+    quotas: { global: 1, perFactio: 1 },
+  };
+
+  // Set a provider key + baseURL.
+  await app.request("/config", {
+    method: "PUT",
+    headers: admin,
+    body: JSON.stringify({
+      ...base,
+      providers: { deepseek: { apiKey: "sk-secret", baseURL: "https://api.deepseek.com" } },
+    }),
+  });
+
+  // The open GET must redact: configured flag + baseURL, never the key.
+  const raw = await (await app.request("/config")).text();
+  expect(raw).not.toContain("sk-secret");
+  const got = JSON.parse(raw) as {
+    providers?: Record<string, { configured: boolean; baseURL?: string; apiKey?: string }>;
+  };
+  expect(got.providers?.deepseek).toEqual({
+    configured: true,
+    baseURL: "https://api.deepseek.com",
+  });
+
+  // A later PUT that omits the apiKey preserves the stored key (merge).
+  await app.request("/config", {
+    method: "PUT",
+    headers: admin,
+    body: JSON.stringify({
+      ...base,
+      providers: { deepseek: { baseURL: "https://api.deepseek.com" } },
+    }),
+  });
+  expect((await config.get()).providers?.deepseek?.apiKey).toBe("sk-secret");
+});
+
 test("PUT /config rejects an invalid shape (400) and 401 without auth", async () => {
   const app = createApp({ ...deps(), config: new InMemoryConfigStore() });
   const admin = { "x-auriga-factio": "default", "x-auriga-role": "admin" };

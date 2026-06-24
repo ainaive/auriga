@@ -39,7 +39,7 @@ const bus = new InMemoryEventBus();
 const runner =
   process.env.AURIGA_STUB_RUNNER === "1"
     ? createStubRunner(store, audit, bus)
-    : createRunner(store, audit, bus);
+    : createRunner(store, audit, config, bus);
 const app = createApp({
   store,
   audit,
